@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import Image from "next/image";
-import { UploadCloud, Crop, Download, RotateCcw, Minimize2, Loader2, Image as ImageIcon } from "lucide-react";
+import { UploadCloud, Crop, Download, RotateCcw, Minimize2, Loader2, Image as ImageIcon, Scale, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { Input } from "@/components/ui/input";
 
 type CropData = { x: number; y: number; width: number; height: number };
 type DragState = { type: 'move' | 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw'; startX: number; startY: number; startCrop: CropData } | null;
@@ -33,6 +34,10 @@ export function PhotoEditor() {
   const [customQuality, setCustomQuality] = useState(85);
   const [processedSize, setProcessedSize] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [outputWidth, setOutputWidth] = useState('');
+  const [outputHeight, setOutputHeight] = useState('');
+  const [aspectRatioLocked, setAspectRatioLocked] = useState(true);
+  const [isEstimating, setIsEstimating] = useState(false);
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +49,8 @@ export function PhotoEditor() {
     setProcessedSize(null);
     setCompressionPreset('high');
     setCustomQuality(85);
+    setOutputWidth('');
+    setOutputHeight('');
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
@@ -194,11 +201,61 @@ export function PhotoEditor() {
     };
   }, [dragState, handleMouseMove, handleMouseUp]);
 
+  useEffect(() => {
+    if (crop && originalImage && imageContainerRef.current) {
+        const { clientWidth: containerWidth, clientHeight: containerHeight } = imageContainerRef.current;
+        const imageAspectRatio = originalImage.width / originalImage.height;
+        const containerAspectRatio = containerWidth / containerHeight;
+        
+        let imgDisplayWidth;
+        if (imageAspectRatio > containerAspectRatio) {
+            imgDisplayWidth = containerWidth;
+        } else {
+            imgDisplayWidth = containerHeight * imageAspectRatio;
+        }
+        
+        const scale = originalImage.width / imgDisplayWidth;
+        const w = Math.round(crop.width * scale);
+        const h = Math.round(crop.height * scale);
+        setOutputWidth(String(w));
+        setOutputHeight(String(h));
+    }
+  }, [crop, originalImage]);
+
+  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newWidth = e.target.value;
+    setOutputWidth(newWidth);
+    if (aspectRatioLocked && crop) {
+        const newWidthNum = parseInt(newWidth, 10);
+        if (!isNaN(newWidthNum) && newWidthNum > 0 && crop.height > 0) {
+            const aspectRatio = crop.width / crop.height;
+            setOutputHeight(String(Math.round(newWidthNum / aspectRatio)));
+        }
+    }
+  };
+
+  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newHeight = e.target.value;
+      setOutputHeight(newHeight);
+      if (aspectRatioLocked && crop) {
+          const newHeightNum = parseInt(newHeight, 10);
+          if (!isNaN(newHeightNum) && newHeightNum > 0) {
+              const aspectRatio = crop.width / crop.height;
+              setOutputWidth(String(Math.round(newHeightNum * aspectRatio)));
+          }
+      }
+  };
+
   const processImage = useCallback(async () => {
     if (!originalImage || !crop || !imageContainerRef.current) return null;
     
-    setIsProcessing(true);
+    const finalWidth = parseInt(outputWidth, 10);
+    const finalHeight = parseInt(outputHeight, 10);
 
+    if (isNaN(finalWidth) || isNaN(finalHeight) || finalWidth <= 0 || finalHeight <= 0) {
+        return null;
+    }
+    
     const image = document.createElement('img');
     image.src = originalImage.url;
     await new Promise(resolve => image.onload = resolve);
@@ -221,8 +278,8 @@ export function PhotoEditor() {
     const scale = originalImage.width / imgDisplayWidth;
 
     const canvas = document.createElement('canvas');
-    canvas.width = crop.width * scale;
-    canvas.height = crop.height * scale;
+    canvas.width = finalWidth;
+    canvas.height = finalHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
@@ -243,14 +300,17 @@ export function PhotoEditor() {
             else resolve({ blob, dataUrl: canvas.toDataURL(mimeType, quality) });
         }, mimeType, quality);
     });
-  }, [originalImage, crop, compressionPreset, customQuality]);
+  }, [originalImage, crop, compressionPreset, customQuality, outputWidth, outputHeight]);
 
   const updateProcessedSize = useCallback(async () => {
+    setIsEstimating(true);
     const result = await processImage();
     if (result) {
         setProcessedSize((result.blob.size / 1024).toFixed(2) + ' KB');
+    } else {
+        setProcessedSize('...');
     }
-    setIsProcessing(false);
+    setIsEstimating(false);
   }, [processImage]);
 
   useEffect(() => {
@@ -260,7 +320,7 @@ export function PhotoEditor() {
       }
     }, 500);
     return () => clearTimeout(handler);
-  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize]);
+  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, outputWidth, outputHeight]);
 
   const handleDownload = async () => {
     setIsProcessing(true);
@@ -275,7 +335,7 @@ export function PhotoEditor() {
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
     } else {
-        toast({ variant: "destructive", title: "Error", description: "Could not process image for download." });
+        toast({ variant: "destructive", title: "Error", description: "Could not process image for download. Please check if dimensions are valid." });
     }
     setIsProcessing(false);
   };
@@ -357,6 +417,33 @@ export function PhotoEditor() {
 
             <Card>
                 <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Scale size={20} /> Resize</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-2">
+                        <div className="grid gap-1.5 flex-1">
+                            <Label htmlFor="width">Width</Label>
+                            <Input id="width" type="number" value={outputWidth} onChange={handleWidthChange} placeholder="e.g. 1920" />
+                        </div>
+                        <div className="grid gap-1.5 flex-1">
+                            <Label htmlFor="height">Height</Label>
+                            <Input id="height" type="number" value={outputHeight} onChange={handleHeightChange} placeholder="e.g. 1080" />
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="self-end shrink-0"
+                            onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
+                            aria-label="Toggle aspect ratio lock"
+                        >
+                            {aspectRatioLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Minimize2 size={20}/> Compress</CardTitle>
                     <CardDescription>Reduce file size without losing quality.</CardDescription>
                 </CardHeader>
@@ -394,7 +481,7 @@ export function PhotoEditor() {
                 <CardContent className="space-y-4">
                     <div className="flex justify-between items-center text-sm p-3 rounded-md bg-background">
                         <span className="text-muted-foreground">Estimated Size:</span>
-                        {isProcessing && !processedSize ? <Loader2 className="animate-spin w-4 h-4"/> : <span className="font-semibold text-primary">{processedSize || '...'}</span>}
+                        {isEstimating ? <Loader2 className="animate-spin w-4 h-4"/> : <span className="font-semibold text-primary">{processedSize || '...'}</span>}
                     </div>
                     <Button className="w-full" size="lg" onClick={handleDownload} disabled={isProcessing}>
                         {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
