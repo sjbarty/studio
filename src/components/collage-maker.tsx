@@ -2,7 +2,7 @@
 
 import { useState, useRef, type ChangeEvent, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,7 @@ export function CollageMaker() {
   const [layout, setLayout] = useState(4);
   const [images, setImages] = useState<(CollageImage | null)[]>(Array(4).fill(null));
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
@@ -280,6 +281,97 @@ export function CollageMaker() {
     }, 'image/png');
   };
 
+  const handlePrint = async () => {
+    setIsPrinting(true);
+
+    const filledSlots = images.filter(img => img !== null).length;
+    if (filledSlots === 0) {
+      toast({ variant: "destructive", title: "Empty Collage", description: "Please add at least one image to print." });
+      setIsPrinting(false);
+      return;
+    }
+
+    const { cols, rows } = getGridLayout(layout);
+    const canvas = document.createElement('canvas');
+    canvas.width = cols * PASSPORT_PRINT_PX;
+    canvas.height = rows * PASSPORT_PRINT_PX;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        toast({ variant: "destructive", title: "Error", description: "Could not create collage for printing." });
+        setIsPrinting(false);
+        return;
+    }
+
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const imagePromises = images.map((imgData, index) => {
+        if (!imgData) return Promise.resolve();
+
+        return new Promise<void>((resolve, reject) => {
+            const img = document.createElement('img');
+            img.onload = () => {
+                const col = index % cols;
+                const row = Math.floor(index / cols);
+                const x = col * PASSPORT_PRINT_PX;
+                const y = row * PASSPORT_PRINT_PX;
+                
+                const { width: W, height: H, zoom, pan } = imgData;
+                const assumedContainerWidth = PASSPORT_PRINT_PX;
+
+                const imgAr = W / H;
+
+                let coveredW;
+                if (imgAr > 1) { // landscape
+                    coveredW = assumedContainerWidth * imgAr;
+                } else { // portrait or square
+                    coveredW = assumedContainerWidth;
+                }
+                
+                const sourceToScreenScale = coveredW / W;
+                const panInSourceCoords = { x: pan.x / sourceToScreenScale, y: pan.y / sourceToScreenScale };
+                const cropDim = Math.min(W, H) / zoom;
+                const centerPoint = { x: W / 2 - panInSourceCoords.x, y: H / 2 - panInSourceCoords.y };
+                
+                let sx = centerPoint.x - cropDim / 2;
+                let sy = centerPoint.y - cropDim / 2;
+
+                sx = Math.max(0, Math.min(W - cropDim, sx));
+                sy = Math.max(0, Math.min(H - cropDim, sy));
+
+                ctx.drawImage(img, sx, sy, cropDim, cropDim, x, y, PASSPORT_PRINT_PX, PASSPORT_PRINT_PX);
+                resolve();
+            };
+            img.onerror = reject;
+            img.src = imgData.src;
+        });
+    });
+
+    try {
+      await Promise.all(imagePromises);
+    } catch(e) {
+        toast({ variant: "destructive", title: "Error", description: "Could not load one of the images for printing." });
+        setIsPrinting(false);
+        return;
+    }
+    
+    const dataUrl = canvas.toDataURL('image/png');
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        printWindow.document.write(`<html><head><title>Print Collage</title></head><body style="margin:0;"><img src="${dataUrl}" style="width:100%;"></body></html>`);
+        printWindow.document.close();
+        printWindow.onload = () => {
+            printWindow.focus();
+            printWindow.print();
+        };
+    } else {
+        toast({ variant: "destructive", title: "Popup Blocked", description: "Please allow popups for this site to print." });
+    }
+
+    setIsPrinting(false);
+  }
+
   const { gridClass, cols, rows } = getGridLayout(layout);
   const totalSlots = cols * rows;
 
@@ -387,10 +479,14 @@ export function CollageMaker() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Download size={20}/> Export</CardTitle>
                 </CardHeader>
-                <CardContent>
-                     <Button className="w-full" size="lg" onClick={handleDownload} disabled={isProcessing}>
+                <CardContent className="space-y-2">
+                     <Button className="w-full" size="lg" onClick={handleDownload} disabled={isProcessing || isPrinting}>
                         {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
                         {isProcessing ? 'Processing...' : 'Download Collage'}
+                    </Button>
+                    <Button variant="outline" className="w-full" size="lg" onClick={handlePrint} disabled={isProcessing || isPrinting}>
+                        {isPrinting ? <Loader2 className="animate-spin mr-2"/> : <Printer className="mr-2"/>}
+                        {isPrinting ? 'Printing...' : 'Print Collage'}
                     </Button>
                 </CardContent>
             </Card>
