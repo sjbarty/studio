@@ -44,7 +44,7 @@ const removeBackgroundFlow = ai.defineFlow(
             {text: 'Remove the background from this image. The subject should be preserved perfectly. The background should be made transparent. Output a PNG image.'},
         ],
         config: {
-            responseModalities: ['IMAGE'],
+            responseModalities: ['TEXT', 'IMAGE'],
         },
     });
 
