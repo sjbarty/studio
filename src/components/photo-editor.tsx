@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import Image from "next/image";
-import { UploadCloud, Crop, Download, RotateCcw, Minimize2, Loader2, Image as ImageIcon } from "lucide-react";
+import { UploadCloud, Crop, Download, RotateCcw, Minimize2, Loader2, Image as ImageIcon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 type CropData = { x: number; y: number; width: number; height: number };
 type DragState = { type: 'move' | 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw'; startX: number; startY: number; startCrop: CropData } | null;
@@ -30,13 +31,14 @@ const placeholderImage = PlaceHolderImages.find(p => p.id === 'editor-placeholde
 export function PhotoEditor() {
   const [originalImage, setOriginalImage] = useState<{ file: File; url: string; width: number; height: number; } | null>(null);
   const [crop, setCrop] = useState<CropData | null>(null);
-  const [dragState, setDragState] = useState<DragState>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
   const [compressionPreset, setCompressionPreset] = useState<CompressionPreset>('high');
   const [customQuality, setCustomQuality] = useState(85);
   const [targetSize, setTargetSize] = useState('');
   const [processedSize, setProcessedSize] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
+  const [isEnhanced, setIsEnhanced] = useState(false);
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,7 @@ export function PhotoEditor() {
     setCompressionPreset('high');
     setCustomQuality(85);
     setTargetSize('');
+    setIsEnhanced(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
@@ -233,6 +236,10 @@ export function PhotoEditor() {
     canvas.height = finalHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
+    
+    if (isEnhanced) {
+        ctx.filter = 'brightness(110%) contrast(110%)';
+    }
 
     ctx.drawImage(
       image,
@@ -242,6 +249,8 @@ export function PhotoEditor() {
       canvas.width, canvas.height // destination width, height
     );
     
+    ctx.filter = 'none';
+
     const mimeType = originalImage.file.type === 'image/png' ? 'image/png' : 'image/jpeg';
     const targetSizeKB = parseInt(targetSize, 10);
     const useCustomTargetSize = compressionPreset === 'custom' && !isNaN(targetSizeKB) && targetSizeKB > 0;
@@ -287,7 +296,7 @@ export function PhotoEditor() {
         const dataUrl = canvas.toDataURL(mimeType, quality);
         return { blob, dataUrl };
     }
-  }, [originalImage, crop, compressionPreset, customQuality, targetSize]);
+  }, [originalImage, crop, compressionPreset, customQuality, targetSize, isEnhanced]);
 
   const updateProcessedSize = useCallback(async () => {
     setIsEstimating(true);
@@ -307,7 +316,7 @@ export function PhotoEditor() {
       }
     }, 500);
     return () => clearTimeout(handler);
-  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, targetSize]);
+  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, targetSize, isEnhanced]);
 
   const handleDownload = async () => {
     setIsProcessing(true);
@@ -368,7 +377,10 @@ export function PhotoEditor() {
                   alt="Uploaded image"
                   width={originalImage.width}
                   height={originalImage.height}
-                  className="max-w-full max-h-full object-contain"
+                  className={cn(
+                    "max-w-full max-h-full object-contain transition-all",
+                    isEnhanced && "filter brightness-110 contrast-110"
+                  )}
                   draggable={false}
                 />
               )}
@@ -399,6 +411,23 @@ export function PhotoEditor() {
                 </CardHeader>
                 <CardContent>
                     <Button variant="outline" className="w-full" onClick={initCrop}><RotateCcw className="mr-2" /> Reset Crop</Button>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Sparkles size={20} /> Auto Enhance</CardTitle>
+                    <CardDescription>Automatically improve image brightness and color.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <Label htmlFor="enhance-switch" className="font-medium">Enable Enhancement</Label>
+                        <Switch
+                            id="enhance-switch"
+                            checked={isEnhanced}
+                            onCheckedChange={setIsEnhanced}
+                        />
+                    </div>
                 </CardContent>
             </Card>
 
