@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import Image from "next/image";
-import { UploadCloud, Crop, Download, RotateCcw, Minimize2, Loader2, Image as ImageIcon, Scale, Lock, Unlock } from "lucide-react";
+import { UploadCloud, Crop, Download, RotateCcw, Minimize2, Loader2, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -36,9 +36,6 @@ export function PhotoEditor() {
   const [targetSize, setTargetSize] = useState('');
   const [processedSize, setProcessedSize] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [outputWidth, setOutputWidth] = useState('');
-  const [outputHeight, setOutputHeight] = useState('');
-  const [aspectRatioLocked, setAspectRatioLocked] = useState(true);
   const [isEstimating, setIsEstimating] = useState(false);
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -52,8 +49,6 @@ export function PhotoEditor() {
     setCompressionPreset('high');
     setCustomQuality(85);
     setTargetSize('');
-    setOutputWidth('');
-    setOutputHeight('');
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
@@ -127,8 +122,6 @@ export function PhotoEditor() {
     
     const { clientWidth: cW, clientHeight: cH } = imageContainerRef.current;
     const { width: oW, height: oH } = originalImage!;
-    const scaleX = oW / cW;
-    const scaleY = oH / cH;
     const imageAspectRatio = oW / oH;
     const containerAspectRatio = cW / cH;
     let imgDisplayWidth, imgDisplayHeight;
@@ -204,51 +197,6 @@ export function PhotoEditor() {
     };
   }, [dragState, handleMouseMove, handleMouseUp]);
 
-  useEffect(() => {
-    if (crop && originalImage && imageContainerRef.current) {
-        const { clientWidth: containerWidth, clientHeight: containerHeight } = imageContainerRef.current;
-        const imageAspectRatio = originalImage.width / originalImage.height;
-        const containerAspectRatio = containerWidth / containerHeight;
-        
-        let imgDisplayWidth;
-        if (imageAspectRatio > containerAspectRatio) {
-            imgDisplayWidth = containerWidth;
-        } else {
-            imgDisplayWidth = containerHeight * imageAspectRatio;
-        }
-        
-        const scale = originalImage.width / imgDisplayWidth;
-        const w = Math.round(crop.width * scale);
-        const h = Math.round(crop.height * scale);
-        setOutputWidth(String(w));
-        setOutputHeight(String(h));
-    }
-  }, [crop, originalImage]);
-
-  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newWidth = e.target.value;
-    setOutputWidth(newWidth);
-    if (aspectRatioLocked && crop) {
-        const newWidthNum = parseInt(newWidth, 10);
-        if (!isNaN(newWidthNum) && newWidthNum > 0 && crop.height > 0) {
-            const aspectRatio = crop.width / crop.height;
-            setOutputHeight(String(Math.round(newWidthNum / aspectRatio)));
-        }
-    }
-  };
-
-  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newHeight = e.target.value;
-      setOutputHeight(newHeight);
-      if (aspectRatioLocked && crop) {
-          const newHeightNum = parseInt(newHeight, 10);
-          if (!isNaN(newHeightNum) && newHeightNum > 0) {
-              const aspectRatio = crop.width / crop.height;
-              setOutputWidth(String(Math.round(newHeightNum * aspectRatio)));
-          }
-      }
-  };
-
   const processImage = useCallback(async () => {
     if (!originalImage || !crop || !imageContainerRef.current) return null;
     
@@ -273,17 +221,10 @@ export function PhotoEditor() {
     
     const scale = originalImage.width / imgDisplayWidth;
 
-    let finalWidth, finalHeight;
+    const finalWidth = Math.round(crop.width * scale);
+    const finalHeight = Math.round(crop.height * scale);
 
-    if (compressionPreset === 'custom') {
-        finalWidth = parseInt(outputWidth, 10);
-        finalHeight = parseInt(outputHeight, 10);
-    } else {
-        finalWidth = Math.round(crop.width * scale);
-        finalHeight = Math.round(crop.height * scale);
-    }
-
-    if (isNaN(finalWidth) || isNaN(finalHeight) || finalWidth <= 0 || finalHeight <= 0) {
+    if (isNaN(finalWidth) || finalWidth <= 0 || isNaN(finalHeight) || finalHeight <= 0) {
         return null;
     }
 
@@ -346,7 +287,7 @@ export function PhotoEditor() {
         const dataUrl = canvas.toDataURL(mimeType, quality);
         return { blob, dataUrl };
     }
-  }, [originalImage, crop, compressionPreset, customQuality, outputWidth, outputHeight, targetSize]);
+  }, [originalImage, crop, compressionPreset, customQuality, targetSize]);
 
   const updateProcessedSize = useCallback(async () => {
     setIsEstimating(true);
@@ -366,7 +307,7 @@ export function PhotoEditor() {
       }
     }, 500);
     return () => clearTimeout(handler);
-  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, outputWidth, outputHeight, targetSize]);
+  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, targetSize]);
 
   const handleDownload = async () => {
     setIsProcessing(true);
@@ -506,31 +447,6 @@ export function PhotoEditor() {
                                 <Label htmlFor="targetSize">Target Size (KB)</Label>
                                 <Input id="targetSize" type="number" value={targetSize} onChange={(e) => setTargetSize(e.target.value)} placeholder="e.g. 500" />
                                 <p className="text-xs text-muted-foreground">Attempts to match size. May not be exact.</p>
-                            </div>
-                            
-                            <Separator/>
-
-                            <div className="space-y-3">
-                                <Label>Custom Dimensions</Label>
-                                <div className="flex items-center gap-2">
-                                    <div className="grid gap-1.5 flex-1">
-                                        <Label htmlFor="width" className="text-xs text-muted-foreground">Width</Label>
-                                        <Input id="width" type="number" value={outputWidth} onChange={handleWidthChange} placeholder="e.g. 1920" />
-                                    </div>
-                                    <div className="grid gap-1.5 flex-1">
-                                        <Label htmlFor="height" className="text-xs text-muted-foreground">Height</Label>
-                                        <Input id="height" type="number" value={outputHeight} onChange={handleHeightChange} placeholder="e.g. 1080" />
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="self-end shrink-0"
-                                        onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
-                                        aria-label="Toggle aspect ratio lock"
-                                    >
-                                        {aspectRatioLocked ? <Lock size={16} /> : <Unlock size={16} />}
-                                    </Button>
-                                </div>
                             </div>
                         </div>
                     )}
