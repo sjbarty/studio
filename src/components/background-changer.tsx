@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, type ChangeEvent } from "react";
+import { useState, useRef, useCallback, type ChangeEvent, useEffect } from "react";
 import Image from "next/image";
 import { UploadCloud, Download, Loader2, Palette, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { removeBackground, type RemoveBackgroundInput } from "@/ai/flows/remove-background-flow";
+import removeBackground from "@imgly/background-removal";
 
 const placeholderImage = PlaceHolderImages.find(p => p.id === 'editor-placeholder');
 
@@ -17,7 +17,7 @@ const BG_COLORS = [
 ];
 
 export function BackgroundChanger() {
-  const [originalImage, setOriginalImage] = useState<{ file: File; url: string; width: number; height: number; } | null>(null);
+  const [originalImage, setOriginalImage] = useState<{ file: File; width: number; height: number; } | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [bgColor, setBgColor] = useState<string>("#FFFFFF");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,11 +29,23 @@ export function BackgroundChanger() {
 
   const resetState = useCallback(() => {
     setOriginalImage(null);
+    if (processedImage) {
+      URL.revokeObjectURL(processedImage);
+    }
     setProcessedImage(null);
     setBgColor("#FFFFFF");
     setIsProcessing(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [processedImage]);
+
+  useEffect(() => {
+    // Revoke the object URL on component unmount
+    return () => {
+      if (processedImage) {
+        URL.revokeObjectURL(processedImage);
+      }
+    };
+  }, [processedImage]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,30 +56,38 @@ export function BackgroundChanger() {
       return;
     }
 
-    const url = URL.createObjectURL(file);
+    const tempUrl = URL.createObjectURL(file);
     const img = document.createElement('img');
     img.onload = () => {
       resetState();
-      setOriginalImage({ file, url, width: img.width, height: img.height });
-      URL.revokeObjectURL(url);
+      setOriginalImage({ file, width: img.width, height: img.height });
+      URL.revokeObjectURL(tempUrl); // Clean up temp URL
       
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-          setIsProcessing(true);
-          try {
-            const result = await removeBackground({ photoDataUri: reader.result as string });
-            setProcessedImage(result.imageDataUri);
-          } catch (error) {
-              console.error(error);
-              toast({ variant: "destructive", title: "Error", description: "Failed to remove background." });
-              resetState();
-          } finally {
-              setIsProcessing(false);
-          }
-      }
-      reader.readAsDataURL(file);
+      setIsProcessing(true);
+      removeBackground(file)
+        .then((blob: Blob) => {
+          const processedUrl = URL.createObjectURL(blob);
+          setProcessedImage(processedUrl);
+        })
+        .catch((error) => {
+          console.error(error);
+          toast({
+            variant: "destructive",
+            title: "Background Removal Failed",
+            description: "Could not process the image. Please try another one.",
+          });
+          resetState();
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
     };
-    img.src = url;
+    img.onerror = () => {
+        toast({ variant: "destructive", title: "Invalid Image", description: "Could not load the selected file." });
+        URL.revokeObjectURL(tempUrl);
+        resetState();
+    }
+    img.src = tempUrl;
   };
 
   const handleDownload = () => {
@@ -94,6 +114,7 @@ export function BackgroundChanger() {
       link.click();
       document.body.removeChild(link);
     };
+    img.crossOrigin = "anonymous";
     img.src = processedImage;
   };
 
@@ -118,7 +139,7 @@ export function BackgroundChanger() {
                 <UploadCloud className="w-10 h-10 text-primary" />
             </div>
             <h3 className="text-2xl font-semibold mb-2 font-headline">Click or drag image to upload</h3>
-            <p className="text-muted-foreground">The background will be removed automatically.</p>
+            <p className="text-muted-foreground">The background will be removed automatically on your device.</p>
           </div>
           <input ref={fileInputRef} type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} />
         </div>
