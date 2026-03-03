@@ -33,6 +33,7 @@ export function PhotoEditor() {
   const [dragState, setDragState] = useState<DragState>(null);
   const [compressionPreset, setCompressionPreset] = useState<CompressionPreset>('high');
   const [customQuality, setCustomQuality] = useState(85);
+  const [targetSize, setTargetSize] = useState('');
   const [processedSize, setProcessedSize] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [outputWidth, setOutputWidth] = useState('');
@@ -50,6 +51,7 @@ export function PhotoEditor() {
     setProcessedSize(null);
     setCompressionPreset('high');
     setCustomQuality(85);
+    setTargetSize('');
     setOutputWidth('');
     setOutputHeight('');
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -299,16 +301,52 @@ export function PhotoEditor() {
       canvas.width, canvas.height // destination width, height
     );
     
-    const quality = compressionPreset === 'custom' ? customQuality / 100 : PRESET_QUALITIES[compressionPreset];
     const mimeType = originalImage.file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-    
-    return new Promise<{ blob: Blob, dataUrl: string } | null>(resolve => {
-        canvas.toBlob(blob => {
-            if (!blob) resolve(null);
-            else resolve({ blob, dataUrl: canvas.toDataURL(mimeType, quality) });
-        }, mimeType, quality);
-    });
-  }, [originalImage, crop, compressionPreset, customQuality, outputWidth, outputHeight]);
+    const targetSizeKB = parseInt(targetSize, 10);
+    const useCustomTargetSize = compressionPreset === 'custom' && !isNaN(targetSizeKB) && targetSizeKB > 0;
+
+    if (useCustomTargetSize) {
+        const getBlobForQuality = (q: number): Promise<Blob | null> => new Promise(res => canvas.toBlob(blob => res(blob), mimeType, q));
+
+        let minQuality = 0;
+        let maxQuality = 1;
+        let quality = 0.5; // Start in the middle
+        let bestMatch: {blob: Blob, quality: number} | null = null;
+
+        for (let i = 0; i < 8; i++) { // 8 iterations of binary search is usually enough
+            const currentBlob = await getBlobForQuality(quality);
+            if (!currentBlob) continue;
+            
+            if (!bestMatch || Math.abs(currentBlob.size / 1024 - targetSizeKB) < Math.abs(bestMatch.blob.size / 1024 - targetSizeKB)) {
+                bestMatch = {blob: currentBlob, quality: quality};
+            }
+
+            if (Math.abs(currentBlob.size / 1024 - targetSizeKB) < (targetSizeKB * 0.02)) { // within 2% tolerance
+                break;
+            }
+
+            if (currentBlob.size / 1024 > targetSizeKB) {
+                maxQuality = quality;
+            } else {
+                minQuality = quality;
+            }
+            quality = (minQuality + maxQuality) / 2;
+        }
+        
+        if (bestMatch) {
+            const dataUrl = canvas.toDataURL(mimeType, bestMatch.quality);
+            return { blob: bestMatch.blob, dataUrl };
+        }
+        return null;
+
+    } else {
+        const quality = compressionPreset === 'custom' ? customQuality / 100 : PRESET_QUALITIES[compressionPreset];
+        const blob = await new Promise<Blob|null>(resolve => canvas.toBlob(resolve, mimeType, quality));
+        if (!blob) return null;
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        return { blob, dataUrl };
+    }
+  }, [originalImage, crop, compressionPreset, customQuality, outputWidth, outputHeight, targetSize]);
 
   const updateProcessedSize = useCallback(async () => {
     setIsEstimating(true);
@@ -328,7 +366,7 @@ export function PhotoEditor() {
       }
     }, 500);
     return () => clearTimeout(handler);
-  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, outputWidth, outputHeight]);
+  }, [crop, compressionPreset, customQuality, originalImage, updateProcessedSize, outputWidth, outputHeight, targetSize]);
 
   const handleDownload = async () => {
     setIsProcessing(true);
@@ -447,10 +485,27 @@ export function PhotoEditor() {
                         <div className="pt-4 space-y-6">
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
-                                    <Label htmlFor="quality">Quality</Label>
-                                    <span className="text-sm font-medium text-primary">{customQuality}%</span>
+                                    <Label htmlFor="quality" className={cn(!!targetSize && "text-muted-foreground")}>Quality</Label>
+                                    <span className={cn("text-sm font-medium", !!targetSize ? "text-muted-foreground" : "text-primary")}>{customQuality}%</span>
                                 </div>
-                                <Slider id="quality" defaultValue={[customQuality]} max={100} min={1} step={1} onValueChange={(v) => setCustomQuality(v[0])} />
+                                <Slider id="quality" defaultValue={[customQuality]} max={100} min={1} step={1} onValueChange={(v) => setCustomQuality(v[0])} disabled={!!targetSize} />
+                            </div>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-card px-2 text-muted-foreground">
+                                    Or
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <Label htmlFor="targetSize">Target Size (KB)</Label>
+                                <Input id="targetSize" type="number" value={targetSize} onChange={(e) => setTargetSize(e.target.value)} placeholder="e.g. 500" />
+                                <p className="text-xs text-muted-foreground">Attempts to match size. May not be exact.</p>
                             </div>
                             
                             <Separator/>
