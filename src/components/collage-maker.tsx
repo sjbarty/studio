@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent } from "react";
+import { useState, useRef, type ChangeEvent, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Download, UploadCloud, LayoutGrid, Trash2, Loader2 } from "lucide-react";
+import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -25,13 +26,25 @@ const getGridLayout = (layout: number) => {
   }
 };
 
+interface CollageImage {
+  src: string;
+  width: number;
+  height: number;
+  zoom: number;
+  pan: { x: number; y: number };
+}
+
+type DragState = { index: number; startX: number; startY: number; startPan: { x: number, y: number } } | null;
+
 export function CollageMaker() {
   const [layout, setLayout] = useState(4);
-  const [images, setImages] = useState<(string | null)[]>(Array(4).fill(null));
+  const [images, setImages] = useState<(CollageImage | null)[]>(Array(4).fill(null));
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
+  const [dragState, setDragState] = useState<DragState>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
 
   const handleLayoutChange = (newLayoutStr: string) => {
     const newLayout = parseInt(newLayoutStr, 10);
@@ -67,12 +80,23 @@ export function CollageMaker() {
     const reader = new FileReader();
     reader.onload = (loadEvent) => {
         const url = loadEvent.target?.result as string;
-        setImages(currentImages => {
-            const newImages = [...currentImages];
-            newImages[activeSlot] = url;
-            return newImages;
-        });
-        setActiveSlot(null);
+        const img = document.createElement('img');
+        img.onload = () => {
+            setImages(currentImages => {
+                const newImages = [...currentImages];
+                newImages[activeSlot] = {
+                    src: url,
+                    width: img.width,
+                    height: img.height,
+                    zoom: 1,
+                    pan: { x: 0, y: 0 }
+                };
+                return newImages;
+            });
+            setActiveSlot(null);
+            URL.revokeObjectURL(url);
+        }
+        img.src = url;
     };
     reader.readAsDataURL(file);
   };
@@ -85,6 +109,85 @@ export function CollageMaker() {
           return newImages;
       })
   }
+
+  const handleZoomChange = (index: number, newZoom: number) => {
+      setImages(currentImages => {
+          const newImages = [...currentImages];
+          const img = newImages[index];
+          if (img) {
+              newImages[index] = { ...img, zoom: newZoom, pan: newZoom === 1 ? {x: 0, y: 0} : img.pan };
+          }
+          return newImages;
+      })
+  }
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, index: number) => {
+    e.preventDefault();
+    const imageState = images[index];
+    if (!imageState || imageState.zoom <= 1) return;
+    setDragState({ index, startX: e.clientX, startY: e.clientY, startPan: imageState.pan });
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragState || !slotRef.current) return;
+    
+    const imageState = images[dragState.index];
+    if (!imageState) return;
+
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+
+    const containerSize = slotRef.current.getBoundingClientRect().width;
+    const { width: W, height: H, zoom } = imageState;
+    const imgAspectRatio = W / H;
+    
+    let coveredW, coveredH;
+    if (imgAspectRatio > 1) { // landscape
+        coveredH = containerSize;
+        coveredW = containerSize * imgAspectRatio;
+    } else { // portrait or square
+        coveredW = containerSize;
+        coveredH = containerSize / imgAspectRatio;
+    }
+
+    const maxPanX = Math.max(0, (coveredW * zoom - containerSize) / 2);
+    const maxPanY = Math.max(0, (coveredH * zoom - containerSize) / 2);
+
+    const newPan = {
+        x: dragState.startPan.x + dx,
+        y: dragState.startPan.y + dy,
+    };
+    
+    const clampedPan = {
+        x: Math.max(-maxPanX, Math.min(maxPanX, newPan.x)),
+        y: Math.max(-maxPanY, Math.min(maxPanY, newPan.y)),
+    };
+
+    setImages(currentImages => {
+        const newImages = [...currentImages];
+        const img = newImages[dragState.index];
+        if (img) {
+            newImages[dragState.index] = { ...img, pan: clampedPan };
+        }
+        return newImages;
+    })
+
+  }, [dragState, images]);
+
+  const handleMouseUp = useCallback(() => {
+    setDragState(null);
+  }, []);
+
+  useEffect(() => {
+    if (dragState) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragState, handleMouseMove, handleMouseUp]);
 
   const handleDownload = async () => {
     setIsProcessing(true);
@@ -122,28 +225,34 @@ export function CollageMaker() {
                 const x = col * PASSPORT_PRINT_PX;
                 const y = row * PASSPORT_PRINT_PX;
                 
-                const imgAspectRatio = img.width / img.height;
-                const passportAspectRatio = 1; // square
-                
-                let sx, sy, sWidth, sHeight;
+                const { width: W, height: H, zoom, pan } = imgData;
+                const assumedContainerWidth = PASSPORT_PRINT_PX;
 
-                if (imgAspectRatio > passportAspectRatio) {
-                    sHeight = img.height;
-                    sWidth = sHeight * passportAspectRatio;
-                    sx = (img.width - sWidth) / 2;
-                    sy = 0;
-                } else {
-                    sWidth = img.width;
-                    sHeight = sWidth / passportAspectRatio;
-                    sy = (img.height - sHeight) / 2;
-                    sx = 0;
+                const imgAr = W / H;
+
+                let coveredW;
+                if (imgAr > 1) { // landscape
+                    coveredW = assumedContainerWidth * imgAr;
+                } else { // portrait or square
+                    coveredW = assumedContainerWidth;
                 }
+                
+                const sourceToScreenScale = coveredW / W;
+                const panInSourceCoords = { x: pan.x / sourceToScreenScale, y: pan.y / sourceToScreenScale };
+                const cropDim = Math.min(W, H) / zoom;
+                const centerPoint = { x: W / 2 - panInSourceCoords.x, y: H / 2 - panInSourceCoords.y };
+                
+                let sx = centerPoint.x - cropDim / 2;
+                let sy = centerPoint.y - cropDim / 2;
 
-                ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, PASSPORT_PRINT_PX, PASSPORT_PRINT_PX);
+                sx = Math.max(0, Math.min(W - cropDim, sx));
+                sy = Math.max(0, Math.min(H - cropDim, sy));
+
+                ctx.drawImage(img, sx, sy, cropDim, cropDim, x, y, PASSPORT_PRINT_PX, PASSPORT_PRINT_PX);
                 resolve();
             };
             img.onerror = reject;
-            img.src = imgData;
+            img.src = imgData.src;
         });
     });
 
@@ -191,16 +300,31 @@ export function CollageMaker() {
                         return (
                         <div
                             key={index}
+                            ref={index === 0 ? slotRef : null}
                             onClick={() => handleSlotClick(index)}
+                            onMouseDown={(e) => handleMouseDown(e, index)}
                             className={cn(
-                                "relative bg-muted/30 rounded-md flex items-center justify-center border-2 border-dashed border-muted-foreground/20 cursor-pointer hover:border-primary transition-colors overflow-hidden",
-                                imgSrc && "border-solid border-transparent"
+                                "relative bg-muted/30 rounded-md flex items-center justify-center border-2 border-dashed border-muted-foreground/20 overflow-hidden",
+                                imgSrc && "border-solid border-transparent",
+                                imgSrc && imgSrc.zoom > 1 && "cursor-grab",
+                                dragState && dragState.index === index && "cursor-grabbing"
                             )}
                             style={{aspectRatio: '1/1'}}
                         >
                             {imgSrc ? (
                                 <>
-                                    <Image src={imgSrc} alt={`Collage image ${index + 1}`} fill style={{objectFit: 'cover'}} className="rounded-md" />
+                                    <Image 
+                                      src={imgSrc.src} 
+                                      alt={`Collage image ${index + 1}`} 
+                                      fill 
+                                      style={{
+                                        objectFit: 'cover', 
+                                        transform: `translate(${imgSrc.pan.x}px, ${imgSrc.pan.y}px) scale(${imgSrc.zoom})`,
+                                        transition: dragState ? 'none' : 'transform 0.1s ease-out',
+                                      }}
+                                      className="rounded-md"
+                                      draggable={false}
+                                    />
                                     <Button
                                         variant="destructive"
                                         size="icon"
@@ -209,9 +333,25 @@ export function CollageMaker() {
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
+                                    <div 
+                                      className="absolute bottom-0 left-0 right-0 p-2 z-10 bg-black/40 backdrop-blur-sm"
+                                      onMouseDown={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <ZoomOut className="text-white" size={16}/>
+                                            <Slider 
+                                                value={[imgSrc.zoom]}
+                                                onValueChange={(val) => handleZoomChange(index, val[0])}
+                                                min={1}
+                                                max={3}
+                                                step={0.1}
+                                            />
+                                            <ZoomIn className="text-white" size={16}/>
+                                        </div>
+                                    </div>
                                 </>
                             ) : (
-                                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                <div className="flex flex-col items-center gap-2 text-muted-foreground cursor-pointer hover:border-primary transition-colors">
                                     <UploadCloud className="w-8 h-8" />
                                     <span className="text-xs">Add Image</span>
                                 </div>
