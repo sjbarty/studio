@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 
 type CropData = { x: number; y: number; width: number; height: number };
 type DragState = { type: 'move' | 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw'; startX: number; startY: number; startCrop: CropData } | null;
@@ -249,13 +250,6 @@ export function PhotoEditor() {
   const processImage = useCallback(async () => {
     if (!originalImage || !crop || !imageContainerRef.current) return null;
     
-    const finalWidth = parseInt(outputWidth, 10);
-    const finalHeight = parseInt(outputHeight, 10);
-
-    if (isNaN(finalWidth) || isNaN(finalHeight) || finalWidth <= 0 || finalHeight <= 0) {
-        return null;
-    }
-    
     const image = document.createElement('img');
     image.src = originalImage.url;
     await new Promise(resolve => image.onload = resolve);
@@ -276,6 +270,20 @@ export function PhotoEditor() {
     imgY = (containerHeight - imgDisplayHeight) / 2;
     
     const scale = originalImage.width / imgDisplayWidth;
+
+    let finalWidth, finalHeight;
+
+    if (compressionPreset === 'custom') {
+        finalWidth = parseInt(outputWidth, 10);
+        finalHeight = parseInt(outputHeight, 10);
+    } else {
+        finalWidth = Math.round(crop.width * scale);
+        finalHeight = Math.round(crop.height * scale);
+    }
+
+    if (isNaN(finalWidth) || isNaN(finalHeight) || finalWidth <= 0 || finalHeight <= 0) {
+        return null;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = finalWidth;
@@ -417,35 +425,8 @@ export function PhotoEditor() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Scale size={20} /> Resize</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center gap-2">
-                        <div className="grid gap-1.5 flex-1">
-                            <Label htmlFor="width">Width</Label>
-                            <Input id="width" type="number" value={outputWidth} onChange={handleWidthChange} placeholder="e.g. 1920" />
-                        </div>
-                        <div className="grid gap-1.5 flex-1">
-                            <Label htmlFor="height">Height</Label>
-                            <Input id="height" type="number" value={outputHeight} onChange={handleHeightChange} placeholder="e.g. 1080" />
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="self-end shrink-0"
-                            onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
-                            aria-label="Toggle aspect ratio lock"
-                        >
-                            {aspectRatioLocked ? <Lock size={16} /> : <Unlock size={16} />}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Minimize2 size={20}/> Compress</CardTitle>
-                    <CardDescription>Reduce file size without losing quality.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Minimize2 size={20}/> Compress & Resize</CardTitle>
+                    <CardDescription>Reduce file size and optionally resize.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <RadioGroup value={compressionPreset} onValueChange={(v) => setCompressionPreset(v as CompressionPreset)}>
@@ -463,12 +444,39 @@ export function PhotoEditor() {
                         </div>
                     </RadioGroup>
                     {compressionPreset === 'custom' && (
-                        <div className="pt-4 space-y-2">
-                            <div className="flex justify-between items-center">
-                                <Label htmlFor="quality">Quality</Label>
-                                <span className="text-sm font-medium text-primary">{customQuality}%</span>
+                        <div className="pt-4 space-y-6">
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <Label htmlFor="quality">Quality</Label>
+                                    <span className="text-sm font-medium text-primary">{customQuality}%</span>
+                                </div>
+                                <Slider id="quality" defaultValue={[customQuality]} max={100} min={1} step={1} onValueChange={(v) => setCustomQuality(v[0])} />
                             </div>
-                            <Slider id="quality" defaultValue={[customQuality]} max={100} min={1} step={1} onValueChange={(v) => setCustomQuality(v[0])} />
+                            
+                            <Separator/>
+
+                            <div className="space-y-3">
+                                <Label>Custom Dimensions</Label>
+                                <div className="flex items-center gap-2">
+                                    <div className="grid gap-1.5 flex-1">
+                                        <Label htmlFor="width" className="text-xs text-muted-foreground">Width</Label>
+                                        <Input id="width" type="number" value={outputWidth} onChange={handleWidthChange} placeholder="e.g. 1920" />
+                                    </div>
+                                    <div className="grid gap-1.5 flex-1">
+                                        <Label htmlFor="height" className="text-xs text-muted-foreground">Height</Label>
+                                        <Input id="height" type="number" value={outputHeight} onChange={handleHeightChange} placeholder="e.g. 1080" />
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="self-end shrink-0"
+                                        onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
+                                        aria-label="Toggle aspect ratio lock"
+                                    >
+                                        {aspectRatioLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </CardContent>
