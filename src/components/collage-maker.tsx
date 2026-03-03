@@ -482,11 +482,11 @@ export function CollageMaker() {
                 <CardContent className="space-y-2">
                      <Button className="w-full" size="lg" onClick={handleDownload} disabled={isProcessing || isPrinting}>
                         {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
-                        {isProcessing ? 'Processing...' : 'Download Collage'}
+                        {isProcessing ? 'Processing...' : 'Save'}
                     </Button>
                     <Button variant="outline" className="w-full" size="lg" onClick={handlePrint} disabled={isProcessing || isPrinting}>
                         {isPrinting ? <Loader2 className="animate-spin mr-2"/> : <Printer className="mr-2"/>}
-                        {isPrinting ? 'Printing...' : 'Print Collage'}
+                        {isPrinting ? 'Printing...' : 'Print'}
                     </Button>
                 </CardContent>
             </Card>
