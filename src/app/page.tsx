@@ -3,7 +3,8 @@ import { OptiPicLogo } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CollageMaker } from "@/components/collage-maker";
-import { Crop, LayoutGrid } from "lucide-react";
+import { BackgroundChanger } from "@/components/background-changer";
+import { Crop, LayoutGrid, ImageMinus } from "lucide-react";
 
 export default function Home() {
   return (
@@ -21,12 +22,15 @@ export default function Home() {
       <main className="flex-1">
         <Tabs defaultValue="editor" className="w-full">
           <div className="flex justify-center border-b">
-            <TabsList className="grid w-full max-w-md grid-cols-2 h-auto rounded-none bg-transparent p-0">
+            <TabsList className="grid w-full max-w-lg grid-cols-3 h-auto rounded-none bg-transparent p-0">
               <TabsTrigger value="editor" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3">
                 <Crop className="mr-2" /> Editor
               </TabsTrigger>
               <TabsTrigger value="collage" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3">
                 <LayoutGrid className="mr-2" /> Collage
+              </TabsTrigger>
+              <TabsTrigger value="background" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3">
+                <ImageMinus className="mr-2" /> Background
               </TabsTrigger>
             </TabsList>
           </div>
@@ -35,6 +39,9 @@ export default function Home() {
           </TabsContent>
           <TabsContent value="collage">
             <CollageMaker />
+          </TabsContent>
+          <TabsContent value="background">
+            <BackgroundChanger />
           </TabsContent>
         </Tabs>
       </main>
