@@ -2,7 +2,7 @@
 
 import { useState, useRef, type ChangeEvent, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut, Printer } from "lucide-react";
+import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut, Printer, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -110,6 +110,24 @@ export function CollageMaker() {
           return newImages;
       })
   }
+
+  const handleDuplicate = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const imageToDuplicate = images[index];
+    if (!imageToDuplicate) return;
+
+    setLayout(6);
+    setImages(Array(6).fill(null).map(() => ({
+      ...imageToDuplicate,
+      pan: { x: 0, y: 0 },
+      zoom: 1,
+    })));
+    
+    toast({
+      title: "Image Duplicated",
+      description: "Layout set to 6 and image applied to all slots.",
+    });
+  };
 
   const handleZoomChange = (index: number, newZoom: number) => {
       setImages(currentImages => {
@@ -417,6 +435,15 @@ export function CollageMaker() {
                                       className="rounded-md"
                                       draggable={false}
                                     />
+                                    <Button
+                                        variant="secondary"
+                                        size="icon"
+                                        className="absolute top-2 right-11 h-7 w-7 opacity-50 hover:opacity-100 z-10"
+                                        onClick={(e) => handleDuplicate(index, e)}
+                                        title="Duplicate to all 6 slots"
+                                    >
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                         variant="destructive"
                                         size="icon"
