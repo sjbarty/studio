@@ -35,6 +35,14 @@ interface CollageImage {
 }
 
 type DragState = { index: number; startX: number; startY: number; startPan: { x: number, y: number } } | null;
+type TouchState = {
+    index: number;
+    startPan?: { x: number; y: number };
+    startZoom?: number;
+    startDist?: number;
+    startX?: number;
+    startY?: number;
+  } | null;
 
 export function CollageMaker() {
   const [layout, setLayout] = useState(4);
@@ -45,6 +53,7 @@ export function CollageMaker() {
   const { toast } = useToast();
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
+  const [touchState, setTouchState] = useState<TouchState>(null);
   const slotRef = useRef<HTMLDivElement>(null);
 
   const handleLayoutChange = (newLayoutStr: string) => {
@@ -129,7 +138,7 @@ export function CollageMaker() {
     });
   };
 
-  const handleZoomChange = (index: number, newZoom: number) => {
+  const handleZoomChange = useCallback((index: number, newZoom: number) => {
       setImages(currentImages => {
           const newImages = [...currentImages];
           const img = newImages[index];
@@ -138,7 +147,7 @@ export function CollageMaker() {
           }
           return newImages;
       })
-  }
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, index: number) => {
     e.preventDefault();
@@ -207,6 +216,106 @@ export function CollageMaker() {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [dragState, handleMouseMove, handleMouseUp]);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, index: number) => {
+    const imageState = images[index];
+    if (!imageState) return;
+  
+    if (e.touches.length === 1) {
+      if (imageState.zoom <= 1) return;
+      setTouchState({
+        index,
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        startPan: imageState.pan,
+      });
+    } else if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setTouchState({
+        index,
+        startDist: dist,
+        startZoom: imageState.zoom,
+      });
+    }
+  };
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!touchState || !slotRef.current) return;
+  
+    const imageState = images[touchState.index];
+    if (!imageState) return;
+    
+    if (e.touches.length === 1 && touchState.startX !== undefined && touchState.startY !== undefined && touchState.startPan) {
+      const dx = e.touches[0].clientX - touchState.startX;
+      const dy = e.touches[0].clientY - touchState.startY;
+  
+      const containerSize = slotRef.current.getBoundingClientRect().width;
+      const { width: W, height: H, zoom } = imageState;
+      const imgAspectRatio = W / H;
+      
+      let coveredW, coveredH;
+      if (imgAspectRatio > 1) {
+          coveredH = containerSize;
+          coveredW = containerSize * imgAspectRatio;
+      } else {
+          coveredW = containerSize;
+          coveredH = containerSize / imgAspectRatio;
+      }
+  
+      const maxPanX = Math.max(0, (coveredW * zoom - containerSize) / 2);
+      const maxPanY = Math.max(0, (coveredH * zoom - containerSize) / 2);
+  
+      const newPan = {
+          x: touchState.startPan.x + dx,
+          y: touchState.startPan.y + dy,
+      };
+      
+      const clampedPan = {
+          x: Math.max(-maxPanX, Math.min(maxPanX, newPan.x)),
+          y: Math.max(-maxPanY, Math.min(maxPanY, newPan.y)),
+      };
+  
+      setImages(currentImages => {
+          const newImages = [...currentImages];
+          const img = newImages[touchState.index];
+          if (img) {
+              newImages[touchState.index] = { ...img, pan: clampedPan };
+          }
+          return newImages;
+      });
+    } else if (e.touches.length === 2 && touchState.startDist && touchState.startZoom) {
+      e.preventDefault();
+      const newDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const scale = newDist / touchState.startDist;
+      const newZoom = Math.max(1, Math.min(3, touchState.startZoom * scale));
+      
+      handleZoomChange(touchState.index, newZoom);
+    }
+  }, [touchState, images, handleZoomChange]);
+
+  const handleTouchEnd = useCallback(() => {
+    setTouchState(null);
+  }, []);
+
+  useEffect(() => {
+    if (touchState) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      document.addEventListener('touchcancel', handleTouchEnd);
+    }
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [touchState, handleTouchMove, handleTouchEnd]);
 
   const handleDownload = async () => {
     setIsProcessing(true);
@@ -413,6 +522,7 @@ export function CollageMaker() {
                             ref={index === 0 ? slotRef : null}
                             onClick={() => handleSlotClick(index)}
                             onMouseDown={(e) => handleMouseDown(e, index)}
+                            onTouchStart={(e) => handleTouchStart(e, index)}
                             className={cn(
                                 "relative bg-muted/30 rounded-md flex items-center justify-center border-2 border-dashed border-muted-foreground/20 overflow-hidden",
                                 imgSrc && "border-solid border-transparent",
@@ -431,6 +541,7 @@ export function CollageMaker() {
                                         objectFit: 'cover', 
                                         transform: `translate(${imgSrc.pan.x}px, ${imgSrc.pan.y}px) scale(${imgSrc.zoom})`,
                                         transition: dragState ? 'none' : 'transform 0.1s ease-out',
+                                        touchAction: 'none',
                                       }}
                                       className="rounded-md"
                                       draggable={false}
@@ -455,6 +566,7 @@ export function CollageMaker() {
                                     <div 
                                       className="absolute bottom-0 left-0 right-0 p-2 z-10 bg-black/40 backdrop-blur-sm"
                                       onMouseDown={(e) => e.stopPropagation()}
+                                      onTouchStart={(e) => e.stopPropagation()}
                                     >
                                         <div className="flex items-center gap-2">
                                             <ZoomOut className="text-white" size={16}/>
