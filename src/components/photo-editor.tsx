@@ -44,7 +44,10 @@ export function PhotoEditor() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const resetState = useCallback(() => {
+  const resetState = useCallback((newUrl?: string) => {
+    if (originalImage?.url && originalImage.url !== newUrl) {
+      URL.revokeObjectURL(originalImage.url);
+    }
     setOriginalImage(null);
     setCrop(null);
     setProcessedSize(null);
@@ -53,28 +56,29 @@ export function PhotoEditor() {
     setTargetSize('');
     setIsEnhanced(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [originalImage?.url]);
 
   useEffect(() => {
     // Revoke the object URL to avoid memory leaks
+    const url = originalImage?.url;
     return () => {
-      if (originalImage?.url) {
-        URL.revokeObjectURL(originalImage.url);
+      if (url) {
+        URL.revokeObjectURL(url);
       }
     };
-  }, [originalImage]);
+  }, [originalImage?.url]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) {
-      toast({ variant: "destructive", title: "Invalid File", description: "Please select an image file." });
+      if(file) toast({ variant: "destructive", title: "Invalid File", description: "Please select an image file." });
       return;
     }
 
     const url = URL.createObjectURL(file);
     const img = document.createElement('img');
     img.onload = () => {
-      resetState();
+      resetState(url);
       setOriginalImage({ file, url, width: img.width, height: img.height });
     };
     img.onerror = () => {
@@ -117,12 +121,17 @@ export function PhotoEditor() {
 
   useEffect(() => {
     const container = imageContainerRef.current;
-    const observer = new ResizeObserver(() => initCrop());
-    if (container) observer.observe(container);
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      if (originalImage) {
+        initCrop();
+      }
+    });
+    observer.observe(container);
     return () => {
-      if (container) observer.unobserve(container);
+      observer.unobserve(container);
     };
-  }, [initCrop]);
+  }, [originalImage, initCrop]);
   
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: DragState['type']) => {
     e.preventDefault();
@@ -131,13 +140,13 @@ export function PhotoEditor() {
   };
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragState || !crop || !imageContainerRef.current) return;
+    if (!dragState || !crop || !imageContainerRef.current || !originalImage) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
     let newCrop = { ...dragState.startCrop };
     
     const { clientWidth: cW, clientHeight: cH } = imageContainerRef.current;
-    const { width: oW, height: oH } = originalImage!;
+    const { width: oW, height: oH } = originalImage;
     const imageAspectRatio = oW / oH;
     const containerAspectRatio = cW / cH;
     let imgDisplayWidth, imgDisplayHeight;
@@ -217,6 +226,7 @@ export function PhotoEditor() {
     if (!originalImage || !crop || !imageContainerRef.current) return null;
     
     const image = document.createElement('img');
+    image.crossOrigin = "anonymous";
     image.src = originalImage.url;
     await new Promise(resolve => image.onload = resolve);
     
@@ -250,6 +260,10 @@ export function PhotoEditor() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     
+    // Fill with white background to prevent black background on JPEG conversion of transparent images
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     if (isEnhanced) {
         ctx.filter = 'brightness(110%) contrast(110%)';
     }
@@ -264,7 +278,7 @@ export function PhotoEditor() {
     
     ctx.filter = 'none';
 
-    const mimeType = originalImage.file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const mimeType = 'image/jpeg';
     const targetSizeKB = parseInt(targetSize, 10);
     const useCustomTargetSize = compressionPreset === 'custom' && !isNaN(targetSizeKB) && targetSizeKB > 0;
 
@@ -312,6 +326,7 @@ export function PhotoEditor() {
   }, [originalImage, crop, compressionPreset, customQuality, targetSize, isEnhanced]);
 
   const updateProcessedSize = useCallback(async () => {
+    if (!originalImage) return;
     setIsEstimating(true);
     const result = await processImage();
     if (result) {
@@ -320,7 +335,7 @@ export function PhotoEditor() {
         setProcessedSize('...');
     }
     setIsEstimating(false);
-  }, [processImage]);
+  }, [processImage, originalImage]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -337,7 +352,7 @@ export function PhotoEditor() {
     if (result) {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(result.blob);
-        const fileExtension = originalImage?.file.name.split('.').pop() || 'jpg';
+        const fileExtension = 'jpg';
         link.download = `OptiPic_${Date.now()}.${fileExtension}`;
         document.body.appendChild(link);
         link.click();
@@ -363,7 +378,7 @@ export function PhotoEditor() {
         >
           {placeholderImage && <Image src={placeholderImage.imageUrl} alt="Abstract background" data-ai-hint={placeholderImage.imageHint} fill className="object-cover opacity-10 dark:opacity-5" />}
           <div 
-            className="relative z-10 flex flex-col items-center justify-center p-8 text-center"
+            className="relative z-10 flex flex-col items-center justify-center p-8 text-center cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
@@ -508,7 +523,7 @@ export function PhotoEditor() {
                         {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
                         Download Image
                     </Button>
-                    <Button variant="ghost" className="w-full" onClick={resetState}>Start Over</Button>
+                    <Button variant="ghost" className="w-full" onClick={() => resetState()}>Start Over</Button>
                 </CardContent>
             </Card>
         </div>
