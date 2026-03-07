@@ -52,8 +52,8 @@ export function CollageMaker() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
-  const [dragState, setDragState] = useState<DragState>(null);
-  const [touchState, setTouchState] = useState<TouchState>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [touchState, setTouchState] = useState<TouchState | null>(null);
   const slotRef = useRef<HTMLDivElement>(null);
 
   const handleLayoutChange = (newLayoutStr: string) => {
@@ -104,7 +104,6 @@ export function CollageMaker() {
                 return newImages;
             });
             setActiveSlot(null);
-            URL.revokeObjectURL(url);
         }
         img.src = url;
     };

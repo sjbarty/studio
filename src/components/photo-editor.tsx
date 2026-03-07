@@ -55,6 +55,15 @@ export function PhotoEditor() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
+  useEffect(() => {
+    // Revoke the object URL to avoid memory leaks
+    return () => {
+      if (originalImage?.url) {
+        URL.revokeObjectURL(originalImage.url);
+      }
+    };
+  }, [originalImage]);
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) {
@@ -67,8 +76,12 @@ export function PhotoEditor() {
     img.onload = () => {
       resetState();
       setOriginalImage({ file, url, width: img.width, height: img.height });
-      URL.revokeObjectURL(url);
     };
+    img.onerror = () => {
+        toast({ variant: "destructive", title: "Invalid Image", description: "Could not load the selected file." });
+        URL.revokeObjectURL(url);
+        resetState();
+    }
     img.src = url;
   };
   
