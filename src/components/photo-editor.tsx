@@ -138,11 +138,31 @@ export function PhotoEditor() {
     if (!crop) return;
     setDragState({ type, startX: e.clientX, startY: e.clientY, startCrop: { ...crop } });
   };
+  
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, type: DragState['type']) => {
+    if (!crop || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setDragState({ type, startX: touch.clientX, startY: touch.clientY, startCrop: { ...crop } });
+  };
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState || !crop || !imageContainerRef.current || !originalImage) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
+    updateCrop(dx, dy);
+  }, [dragState, crop, originalImage]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!dragState || !crop || !imageContainerRef.current || !originalImage || e.touches.length !== 1) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const dx = touch.clientX - dragState.startX;
+    const dy = touch.clientY - dragState.startY;
+    updateCrop(dx, dy);
+  }, [dragState, crop, originalImage]);
+
+  const updateCrop = (dx: number, dy: number) => {
+    if (!dragState || !crop || !imageContainerRef.current || !originalImage) return;
     let newCrop = { ...dragState.startCrop };
     
     const { clientWidth: cW, clientHeight: cH } = imageContainerRef.current;
@@ -205,9 +225,13 @@ export function PhotoEditor() {
         }
     }
     setCrop(newCrop);
-  }, [dragState, crop, originalImage]);
+  };
 
   const handleMouseUp = useCallback(() => {
+    setDragState(null);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
     setDragState(null);
   }, []);
 
@@ -215,12 +239,18 @@ export function PhotoEditor() {
     if (dragState) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      document.addEventListener('touchcancel', handleTouchEnd);
     }
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [dragState, handleMouseMove, handleMouseUp]);
+  }, [dragState, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
   const processImage = useCallback(async () => {
     if (!originalImage || !crop || !imageContainerRef.current) return null;
@@ -415,8 +445,9 @@ export function PhotoEditor() {
               {crop && (
                 <div 
                     className="absolute border-2 border-accent cursor-move select-none"
-                    style={{ left: crop.x, top: crop.y, width: crop.width, height: crop.height, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)' }}
+                    style={{ left: crop.x, top: crop.y, width: crop.width, height: crop.height, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)', touchAction: 'none' }}
                     onMouseDown={(e) => handleMouseDown(e, 'move')}
+                    onTouchStart={(e) => handleTouchStart(e, 'move')}
                 >
                     {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(dir => (
                         <div key={dir} className={cn('absolute w-3 h-3 bg-accent rounded-full',
@@ -424,7 +455,7 @@ export function PhotoEditor() {
                             dir.includes('w') && '-left-1.5', dir.includes('e') && '-right-1.5', !dir.includes('w') && !dir.includes('e') && 'left-1/2 -translate-x-1/2',
                             (dir === 'nw' || dir === 'se') && 'cursor-nwse-resize', (dir === 'ne' || dir === 'sw') && 'cursor-nesw-resize',
                             (dir === 'n' || dir === 's') && 'cursor-ns-resize', (dir === 'e' || dir === 'w') && 'cursor-ew-resize'
-                        )} onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, dir as any); }} />
+                        )} onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, dir as any); }} onTouchStart={(e) => { e.stopPropagation(); handleTouchStart(e, dir as any); }} />
                     ))}
                 </div>
               )}
