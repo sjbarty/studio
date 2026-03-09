@@ -7,6 +7,16 @@ import { Separator } from '@/components/ui/separator';
 import { CollageMaker } from "@/components/collage-maker";
 import { BackgroundChanger } from "@/components/background-changer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
 
 export default function Home() {
   const [activeTool, setActiveTool] = useState("editor");
@@ -27,6 +37,22 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4 md:px-6">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="mr-4">
+                <Menu className="h-6 w-6" />
+                <span className="sr-only">Open Menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle>Additional Tools</SheetTitle>
+              </SheetHeader>
+              <div className="grid gap-4 py-4">
+                <p className="text-sm text-muted-foreground">New tools will appear here.</p>
+              </div>
+            </SheetContent>
+          </Sheet>
           <a href="/" className="mr-6 flex items-center space-x-2">
             <OptiPicLogo className="h-6 w-6 text-primary" />
             <span className="font-bold font-headline sm:inline-block">
@@ -42,6 +68,7 @@ export default function Home() {
               </TabsList>
             </Tabs>
           </div>
+          <div className="w-10" />
         </div>
       </header>
       <main className="flex-1">
