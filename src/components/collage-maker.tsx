@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState, useRef, type ChangeEvent, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut, Printer, Copy } from "lucide-react";
+import { Download, UploadCloud, LayoutGrid, Trash2, Loader2, ZoomIn, ZoomOut, Printer, Copy, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,10 @@ import { cn } from "@/lib/utils";
 const PASSPORT_PRINT_PX = 602; // 51mm at 300 DPI
 
 const LAYOUTS = [1, 2, 3, 4, 5, 6, 8, 9];
+
+const BG_COLORS = [
+  "#FFFFFF", "#000000", "#E2E8F0", "#FECACA", "#FED7AA", "#FEF08A", "#D9F99D", "#A7F3D0", "#A5F3FC", "#BFDBFE", "#C7D2FE", "#FBCFE8"
+];
 
 const getGridLayout = (layout: number) => {
   switch (layout) {
@@ -58,6 +63,10 @@ export function CollageMaker() {
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [touchState, setTouchState] = useState<TouchState | null>(null);
   const slotRef = useRef<HTMLDivElement>(null);
+  
+  const [gap, setGap] = useState(8);
+  const [cornerRadius, setCornerRadius] = useState(8);
+  const [backgroundColor, setBackgroundColor] = useState("#FFFFFF");
 
   const handleLayoutChange = (newLayoutStr: string) => {
     const newLayout = parseInt(newLayoutStr, 10);
@@ -319,30 +328,40 @@ export function CollageMaker() {
     };
   }, [touchState, handleTouchMove, handleTouchEnd]);
 
-  const handleDownload = async () => {
-    setIsProcessing(true);
-
-    const filledSlots = images.filter(img => img !== null).length;
-    if (filledSlots === 0) {
-      toast({ variant: "destructive", title: "Empty Collage", description: "Please add at least one image." });
-      setIsProcessing(false);
-      return;
-    }
-
+  const generateCollageCanvas = useCallback(async () => {
     const { cols, rows } = getGridLayout(layout);
     const canvas = document.createElement('canvas');
-    canvas.width = cols * PASSPORT_PRINT_PX;
-    canvas.height = rows * PASSPORT_PRINT_PX;
-
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        toast({ variant: "destructive", title: "Error", description: "Could not create collage." });
-        setIsProcessing(false);
-        return;
-    }
+    
+    if (!ctx) return null;
 
-    ctx.fillStyle = 'white';
+    const scale = 4; // Scale for better resolution
+    const canvasGap = gap * scale;
+    const canvasCornerRadius = cornerRadius * scale;
+    const cellWidth = PASSPORT_PRINT_PX;
+    const cellHeight = PASSPORT_PRINT_PX;
+
+    canvas.width = cols * cellWidth + (cols + 1) * canvasGap;
+    canvas.height = rows * cellHeight + (rows + 1) * canvasGap;
+
+    ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+      if (radius === 0) {
+        ctx.rect(x, y, width, height);
+        return;
+      }
+      if (width < 2 * radius) radius = width / 2;
+      if (height < 2 * radius) radius = height / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + width, y, x + width, y + height, radius);
+      ctx.arcTo(x + width, y + height, x, y + height, radius);
+      ctx.arcTo(x, y + height, x, y, radius);
+      ctx.arcTo(x, y, x + width, y, radius);
+      ctx.closePath();
+    }
 
     const imagePromises = images.map((imgData, index) => {
         if (!imgData) return Promise.resolve();
@@ -352,20 +371,13 @@ export function CollageMaker() {
             img.onload = () => {
                 const col = index % cols;
                 const row = Math.floor(index / cols);
-                const x = col * PASSPORT_PRINT_PX;
-                const y = row * PASSPORT_PRINT_PX;
+                const x = col * (cellWidth + canvasGap) + canvasGap;
+                const y = row * (cellHeight + canvasGap) + canvasGap;
                 
                 const { width: W, height: H, zoom, pan } = imgData;
-                const assumedContainerWidth = PASSPORT_PRINT_PX;
-
                 const imgAr = W / H;
-
-                let coveredW;
-                if (imgAr > 1) { // landscape
-                    coveredW = assumedContainerWidth * imgAr;
-                } else { // portrait or square
-                    coveredW = assumedContainerWidth;
-                }
+                
+                let coveredW = imgAr > 1 ? cellWidth * imgAr : cellWidth;
                 
                 const sourceToScreenScale = coveredW / W;
                 const panInSourceCoords = { x: pan.x / sourceToScreenScale, y: pan.y / sourceToScreenScale };
@@ -378,7 +390,11 @@ export function CollageMaker() {
                 sx = Math.max(0, Math.min(W - cropDim, sx));
                 sy = Math.max(0, Math.min(H - cropDim, sy));
 
-                ctx.drawImage(img, sx, sy, cropDim, cropDim, x, y, PASSPORT_PRINT_PX, PASSPORT_PRINT_PX);
+                ctx.save();
+                roundRect(ctx, x, y, cellWidth, cellHeight, canvasCornerRadius);
+                ctx.clip();
+                ctx.drawImage(img, sx, sy, cropDim, cropDim, x, y, cellWidth, cellHeight);
+                ctx.restore();
                 resolve();
             };
             img.onerror = reject;
@@ -388,10 +404,27 @@ export function CollageMaker() {
 
     try {
       await Promise.all(imagePromises);
-    } catch(e) {
-        toast({ variant: "destructive", title: "Error", description: "Could not load one of the images." });
-        setIsProcessing(false);
-        return;
+      return canvas;
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "Could not load one of the images." });
+      return null;
+    }
+  }, [images, layout, gap, cornerRadius, backgroundColor, toast]);
+
+  const handleDownload = async () => {
+    setIsProcessing(true);
+
+    const filledSlots = images.filter(img => img !== null).length;
+    if (filledSlots === 0) {
+      toast({ variant: "destructive", title: "Empty Collage", description: "Please add at least one image." });
+      setIsProcessing(false);
+      return;
+    }
+    
+    const canvas = await generateCollageCanvas();
+    if (!canvas) {
+      setIsProcessing(false);
+      return;
     }
     
     canvas.toBlob(blob => {
@@ -420,67 +453,8 @@ export function CollageMaker() {
       return;
     }
 
-    const { cols, rows } = getGridLayout(layout);
-    const canvas = document.createElement('canvas');
-    canvas.width = cols * PASSPORT_PRINT_PX;
-    canvas.height = rows * PASSPORT_PRINT_PX;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        toast({ variant: "destructive", title: "Error", description: "Could not create collage for printing." });
-        setIsPrinting(false);
-        return;
-    }
-
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const imagePromises = images.map((imgData, index) => {
-        if (!imgData) return Promise.resolve();
-
-        return new Promise<void>((resolve, reject) => {
-            const img = document.createElement('img');
-            img.onload = () => {
-                const col = index % cols;
-                const row = Math.floor(index / cols);
-                const x = col * PASSPORT_PRINT_PX;
-                const y = row * PASSPORT_PRINT_PX;
-                
-                const { width: W, height: H, zoom, pan } = imgData;
-                const assumedContainerWidth = PASSPORT_PRINT_PX;
-
-                const imgAr = W / H;
-
-                let coveredW;
-                if (imgAr > 1) { // landscape
-                    coveredW = assumedContainerWidth * imgAr;
-                } else { // portrait or square
-                    coveredW = assumedContainerWidth;
-                }
-                
-                const sourceToScreenScale = coveredW / W;
-                const panInSourceCoords = { x: pan.x / sourceToScreenScale, y: pan.y / sourceToScreenScale };
-                const cropDim = Math.min(W, H) / zoom;
-                const centerPoint = { x: W / 2 - panInSourceCoords.x, y: H / 2 - panInSourceCoords.y };
-                
-                let sx = centerPoint.x - cropDim / 2;
-                let sy = centerPoint.y - cropDim / 2;
-
-                sx = Math.max(0, Math.min(W - cropDim, sx));
-                sy = Math.max(0, Math.min(H - cropDim, sy));
-
-                ctx.drawImage(img, sx, sy, cropDim, cropDim, x, y, PASSPORT_PRINT_PX, PASSPORT_PRINT_PX);
-                resolve();
-            };
-            img.onerror = reject;
-            img.src = imgData.src;
-        });
-    });
-
-    try {
-      await Promise.all(imagePromises);
-    } catch(e) {
-        toast({ variant: "destructive", title: "Error", description: "Could not load one of the images for printing." });
+    const canvas = await generateCollageCanvas();
+    if (!canvas) {
         setIsPrinting(false);
         return;
     }
@@ -509,10 +483,14 @@ export function CollageMaker() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 xl:col-span-9">
             <div 
-                className="w-full bg-white p-4 rounded-lg shadow-inner border"
-                style={{ aspectRatio: `${cols}/${rows}`}}
+                className="w-full rounded-lg shadow-inner border"
+                style={{
+                  aspectRatio: `${cols}/${rows}`,
+                  backgroundColor: backgroundColor,
+                  padding: `${gap}px`
+                }}
             >
-                <div className={cn("grid gap-2 h-full w-full", gridClass)}>
+                <div className={cn("grid h-full w-full", gridClass)} style={{gap: `${gap}px`}}>
                     {Array.from({ length: totalSlots }).map((_, index) => {
                          if (layout === 5 && index >= 5) return null;
 
@@ -526,12 +504,12 @@ export function CollageMaker() {
                             onMouseDown={(e) => handleMouseDown(e, index)}
                             onTouchStart={(e) => handleTouchStart(e, index)}
                             className={cn(
-                                "relative bg-muted/30 rounded-md flex items-center justify-center border-2 border-dashed border-muted-foreground/20 overflow-hidden",
+                                "relative bg-muted/30 flex items-center justify-center border-2 border-dashed border-muted-foreground/20 overflow-hidden",
                                 imgSrc && "border-solid border-transparent",
                                 imgSrc && imgSrc.zoom > 1 && "cursor-grab",
                                 dragState && dragState.index === index && "cursor-grabbing"
                             )}
-                            style={{aspectRatio: '1/1'}}
+                            style={{aspectRatio: '1/1', borderRadius: `${cornerRadius}px`}}
                         >
                             {imgSrc ? (
                                 <>
@@ -545,7 +523,6 @@ export function CollageMaker() {
                                         transition: dragState ? 'none' : 'transform 0.1s ease-out',
                                         touchAction: 'none',
                                       }}
-                                      className="rounded-md"
                                       draggable={false}
                                     />
                                     <Button
@@ -616,6 +593,38 @@ export function CollageMaker() {
                     </RadioGroup>
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Palette size={20}/> Style</CardTitle>
+                    <CardDescription>Customize your collage.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="space-y-2">
+                        <Label>Spacing</Label>
+                        <Slider value={[gap]} onValueChange={(v) => setGap(v[0])} max={32} step={1} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Roundness</Label>
+                        <Slider value={[cornerRadius]} onValueChange={(v) => setCornerRadius(v[0])} max={48} step={1} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Background</Label>
+                        <div className="grid grid-cols-6 gap-2 pt-2">
+                            {BG_COLORS.map(color => (
+                                <button
+                                    key={color}
+                                    onClick={() => setBackgroundColor(color)}
+                                    className={cn("w-full aspect-square rounded-md border-2", backgroundColor === color ? "border-primary ring-2 ring-primary ring-offset-2" : "border-slate-200")}
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="bg-primary/5 border-primary/20">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Download size={20}/> Export</CardTitle>
