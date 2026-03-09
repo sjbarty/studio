@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 const placeholderImage = PlaceHolderImages.find(p => p.id === 'editor-placeholder');
 
 type TextDragState = {
-  type: 'top' | 'bottom';
+  type: 'top' | 'bottom' | 'middle';
   startX: number;
   startY: number;
   startPos: { x: number; y: number };
@@ -50,6 +50,7 @@ export function MemeGenerator() {
   const [image, setImage] = useState<{ file: File; url: string; width: number; height: number; } | null>(null);
   const [topText, setTopText] = useState("Top Text");
   const [bottomText, setBottomText] = useState("Bottom Text");
+  const [middleText, setMiddleText] = useState("Middle Text");
 
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,6 +59,7 @@ export function MemeGenerator() {
 
   const [topTextPos, setTopTextPos] = useState({ x: 50, y: 10 });
   const [bottomTextPos, setBottomTextPos] = useState({ x: 50, y: 90 });
+  const [middleTextPos, setMiddleTextPos] = useState({ x: 50, y: 50 });
   const [dragState, setDragState] = useState<TextDragState | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -68,8 +70,10 @@ export function MemeGenerator() {
     setImage(null);
     setTopText("Top Text");
     setBottomText("Bottom Text");
+    setMiddleText("Middle Text");
     setTopTextPos({ x: 50, y: 10 });
     setBottomTextPos({ x: 50, y: 90 });
+    setMiddleTextPos({ x: 50, y: 50 });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [image?.url]);
   
@@ -103,19 +107,19 @@ export function MemeGenerator() {
     img.src = url;
   };
 
-  const handleTextMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: 'top' | 'bottom') => {
+  const handleTextMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: 'top' | 'bottom' | 'middle') => {
     e.preventDefault();
     e.stopPropagation();
-    const startPos = type === 'top' ? topTextPos : bottomTextPos;
+    const startPos = type === 'top' ? topTextPos : type === 'bottom' ? bottomTextPos : middleTextPos;
     setDragState({ type, startX: e.clientX, startY: e.clientY, startPos });
   };
   
-  const handleTextTouchStart = (e: React.TouchEvent<HTMLDivElement>, type: 'top' | 'bottom') => {
+  const handleTextTouchStart = (e: React.TouchEvent<HTMLDivElement>, type: 'top' | 'bottom' | 'middle') => {
     if (e.touches.length !== 1) return;
     e.preventDefault();
     e.stopPropagation();
     const touch = e.touches[0];
-    const startPos = type === 'top' ? topTextPos : bottomTextPos;
+    const startPos = type === 'top' ? topTextPos : type === 'bottom' ? bottomTextPos : middleTextPos;
     setDragState({ type, startX: touch.clientX, startY: touch.clientY, startPos });
   };
 
@@ -137,8 +141,10 @@ export function MemeGenerator() {
 
     if (dragState.type === 'top') {
       setTopTextPos({ x: clampedX, y: clampedY });
-    } else {
+    } else if (dragState.type === 'bottom') {
       setBottomTextPos({ x: clampedX, y: clampedY });
+    } else {
+      setMiddleTextPos({ x: clampedX, y: clampedY });
     }
   }, [dragState]);
 
@@ -197,6 +203,12 @@ export function MemeGenerator() {
         const topY = (topTextPos.y / 100) * canvas.height;
         ctx.strokeText(topText.toUpperCase(), topX, topY);
         ctx.fillText(topText.toUpperCase(), topX, topY);
+        
+        // Draw middle text
+        const middleX = (middleTextPos.x / 100) * canvas.width;
+        const middleY = (middleTextPos.y / 100) * canvas.height;
+        ctx.strokeText(middleText.toUpperCase(), middleX, middleY);
+        ctx.fillText(middleText.toUpperCase(), middleX, middleY);
 
         // Draw bottom text
         const bottomX = (bottomTextPos.x / 100) * canvas.width;
@@ -265,6 +277,12 @@ export function MemeGenerator() {
                 onTouchStart={(e) => handleTextTouchStart(e, 'top')}
               />
               <MemeTextDisplay
+                text={middleText}
+                position={middleTextPos}
+                onMouseDown={(e) => handleTextMouseDown(e, 'middle')}
+                onTouchStart={(e) => handleTextTouchStart(e, 'middle')}
+              />
+              <MemeTextDisplay
                 text={bottomText}
                 position={bottomTextPos}
                 onMouseDown={(e) => handleTextMouseDown(e, 'bottom')}
@@ -284,6 +302,10 @@ export function MemeGenerator() {
                     <div className="space-y-1">
                         <label htmlFor="top-text" className="text-sm font-medium">Top Text</label>
                         <Input id="top-text" placeholder="Top text" value={topText} onChange={e => setTopText(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                         <label htmlFor="middle-text" className="text-sm font-medium">Middle Text</label>
+                        <Input id="middle-text" placeholder="Middle text" value={middleText} onChange={e => setMiddleText(e.target.value)} />
                     </div>
                     <div className="space-y-1">
                          <label htmlFor="bottom-text" className="text-sm font-medium">Bottom Text</label>
