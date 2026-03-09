@@ -6,8 +6,9 @@ import { OptiPicLogo } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
 import { CollageMaker } from "@/components/collage-maker";
 import { BackgroundChanger } from "@/components/background-changer";
+import { MemeGenerator } from "@/components/meme-generator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Menu } from "lucide-react";
+import { Menu, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,6 +16,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
+  SheetClose,
 } from "@/components/ui/sheet";
 
 
@@ -27,6 +29,8 @@ export default function Home() {
         return <CollageMaker />;
       case 'background':
         return <BackgroundChanger />;
+      case 'meme':
+        return <MemeGenerator />;
       case 'editor':
       default:
         return <PhotoEditor />;
@@ -48,8 +52,13 @@ export default function Home() {
               <SheetHeader>
                 <SheetTitle>Additional Tools</SheetTitle>
               </SheetHeader>
-              <div className="grid gap-4 py-4">
-                <p className="text-sm text-muted-foreground">New tools will appear here.</p>
+              <div className="grid gap-2 py-4">
+                <SheetClose asChild>
+                  <Button variant={activeTool === 'meme' ? "secondary" : "ghost"} className="justify-start" onClick={() => setActiveTool('meme')}>
+                    <MessageSquarePlus className="mr-2" />
+                    Meme Generator
+                  </Button>
+                </SheetClose>
               </div>
             </SheetContent>
           </Sheet>
