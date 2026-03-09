@@ -13,15 +13,18 @@ import { cn } from "@/lib/utils";
 
 const PASSPORT_PRINT_PX = 602; // 51mm at 300 DPI
 
-const LAYOUTS = [2, 3, 4, 5, 6];
+const LAYOUTS = [1, 2, 3, 4, 5, 6, 8, 9];
 
 const getGridLayout = (layout: number) => {
   switch (layout) {
+    case 1: return { cols: 1, rows: 1, gridClass: "grid-cols-1 grid-rows-1" };
     case 2: return { cols: 2, rows: 1, gridClass: "grid-cols-2 grid-rows-1" };
     case 3: return { cols: 3, rows: 1, gridClass: "grid-cols-3 grid-rows-1" };
     case 4: return { cols: 2, rows: 2, gridClass: "grid-cols-2 grid-rows-2" };
     case 5: return { cols: 3, rows: 2, gridClass: "grid-cols-3 grid-rows-2" };
     case 6: return { cols: 3, rows: 2, gridClass: "grid-cols-3 grid-rows-2" };
+    case 8: return { cols: 4, rows: 2, gridClass: "grid-cols-4 grid-rows-2" };
+    case 9: return { cols: 3, rows: 3, gridClass: "grid-cols-3 grid-rows-3" };
     default: return { cols: 2, rows: 1, gridClass: "grid-cols-2 grid-rows-1" };
   }
 };
@@ -599,7 +602,7 @@ export function CollageMaker() {
                     <CardDescription>Select the number of photos.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <RadioGroup value={String(layout)} onValueChange={handleLayoutChange} className="grid grid-cols-3 gap-2">
+                    <RadioGroup value={String(layout)} onValueChange={handleLayoutChange} className="grid grid-cols-4 gap-2">
                         {LAYOUTS.map(l => (
                             <div key={l}>
                                 <RadioGroupItem value={String(l)} id={`layout-${l}`} className="sr-only" />
