@@ -8,8 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, UploadCloud, FileImage, FileSymlink, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 
 interface SelectedImage {
   file: File;
@@ -19,7 +17,7 @@ interface SelectedImage {
 export default function ConvertPage() {
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [isConverting, setIsConverting] = useState(false);
-  const [quality, setQuality] = useState(0.8);
+  const quality = 0.5; // Default quality set to 50%
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -148,7 +146,7 @@ export default function ConvertPage() {
             <h1 className="text-3xl font-bold font-headline">Image to PDF Converter</h1>
         </div>
 
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>Upload Your Images</CardTitle>
             <CardDescription>Select one or more images. Each image will be placed on a separate page in the PDF.</CardDescription>
@@ -215,32 +213,6 @@ export default function ConvertPage() {
             />
           </CardContent>
         </Card>
-        
-        <div className="my-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Compression Settings</CardTitle>
-                    <CardDescription>Adjust the image quality to reduce PDF size. All images will be converted to JPEG.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <Label htmlFor="quality" className="font-medium">Image Quality</Label>
-                            <span className="text-sm font-semibold text-primary">{Math.round(quality * 100)}%</span>
-                        </div>
-                        <Slider
-                            id="quality"
-                            min={0.1}
-                            max={1}
-                            step={0.05}
-                            value={[quality]}
-                            onValueChange={(value) => setQuality(value[0])}
-                        />
-                        <p className="text-xs text-muted-foreground">Lower quality results in a smaller file size.</p>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
         
         <div className="flex justify-end">
             <Button size="lg" onClick={handleConvertToPdf} disabled={isConverting || selectedImages.length === 0}>
