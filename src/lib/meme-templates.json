@@ -1,0 +1,40 @@
+{
+  "memeTemplates": [
+    {
+      "id": "drake-hotline-bling",
+      "name": "Drake Hotline Bling",
+      "imageUrl": "https://picsum.photos/seed/drakememe/500/500",
+      "imageHint": "drake hotline"
+    },
+    {
+      "id": "distracted-boyfriend",
+      "name": "Distracted Boyfriend",
+      "imageUrl": "https://picsum.photos/seed/boyfriendmeme/800/533",
+      "imageHint": "distracted boyfriend"
+    },
+    {
+      "id": "woman-yelling-at-cat",
+      "name": "Woman Yelling at Cat",
+      "imageUrl": "https://picsum.photos/seed/catmeme/800/450",
+      "imageHint": "yelling at cat"
+    },
+    {
+      "id": "two-buttons",
+      "name": "Two Buttons",
+      "imageUrl": "https://picsum.photos/seed/buttonsmeme/600/400",
+      "imageHint": "two buttons"
+    },
+    {
+      "id": "change-my-mind",
+      "name": "Change My Mind",
+      "imageUrl": "https://picsum.photos/seed/mindmeme/700/467",
+      "imageHint": "change my mind"
+    },
+    {
+      "id": "expanding-brain",
+      "name": "Expanding Brain",
+      "imageUrl": "https://picsum.photos/seed/brainmeme/600/750",
+      "imageHint": "expanding brain"
+    }
+  ]
+}

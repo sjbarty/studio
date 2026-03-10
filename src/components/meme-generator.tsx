@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Input } from "@/components/ui/input";
+import { MemeTemplates, type MemeTemplate } from "@/lib/meme-templates";
 
 const placeholderImage = PlaceHolderImages.find(p => p.id === 'editor-placeholder');
 
@@ -70,7 +71,7 @@ export function MemeGenerator() {
     setImage(null);
     setTopText("Top Text");
     setBottomText("Bottom Text");
-    setMiddleText("Middle Text");
+    setMiddleText("");
     setTopTextPos({ x: 50, y: 10 });
     setBottomTextPos({ x: 50, y: 90 });
     setMiddleTextPos({ x: 50, y: 50 });
@@ -106,6 +107,37 @@ export function MemeGenerator() {
     }
     img.src = url;
   };
+
+  const handleTemplateSelect = async (template: MemeTemplate) => {
+    setIsProcessing(true);
+    try {
+        const response = await fetch(template.imageUrl);
+        if (!response.ok) throw new Error('Network response was not ok.');
+        const blob = await response.blob();
+        const fileName = template.id + '.jpg';
+        const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+
+        const url = URL.createObjectURL(file);
+        const img = document.createElement('img');
+        img.onload = () => {
+          resetState(url);
+          setImage({ file, url, width: img.width, height: img.height });
+          setIsProcessing(false);
+        };
+        img.onerror = () => {
+            toast({ variant: "destructive", title: "Error", description: "Could not load template image." });
+            URL.revokeObjectURL(url);
+            resetState();
+            setIsProcessing(false);
+        }
+        img.src = url;
+    } catch (error) {
+        console.error("Failed to load template", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not load the selected template." });
+        setIsProcessing(false);
+    }
+  };
+
 
   const handleTextMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: 'top' | 'bottom' | 'middle') => {
     e.preventDefault();
@@ -252,6 +284,38 @@ export function MemeGenerator() {
           </div>
           <input ref={fileInputRef} type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} />
         </div>
+        <Card className="mt-8">
+            <CardHeader>
+                <CardTitle>Or use a popular template</CardTitle>
+                <CardDescription>Click a template to get started.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isProcessing ? (
+                    <div className="flex items-center justify-center p-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="ml-4 text-muted-foreground">Loading template...</p>
+                    </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {MemeTemplates.map(template => (
+                          <button key={template.id} className="text-left group" onClick={() => handleTemplateSelect(template)}>
+                              <div className="relative aspect-video w-full rounded-lg overflow-hidden ring-1 ring-border group-hover:ring-primary transition-all">
+                                  <Image
+                                      src={template.imageUrl}
+                                      alt={template.name}
+                                      fill
+                                      className="object-cover"
+                                      data-ai-hint={template.imageHint}
+                                      sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                  />
+                              </div>
+                              <p className="text-sm text-center font-medium mt-2 text-muted-foreground group-hover:text-foreground transition-colors">{template.name}</p>
+                          </button>
+                      ))}
+                  </div>
+                )}
+            </CardContent>
+        </Card>
       </div>
     );
   }
