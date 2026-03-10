@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, UploadCloud, FileImage, FileSymlink, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 
 interface SelectedImage {
   file: File;
@@ -17,6 +19,7 @@ interface SelectedImage {
 export default function ConvertPage() {
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [quality, setQuality] = useState(0.8);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -87,6 +90,16 @@ export default function ConvertPage() {
         const img = new window.Image();
         img.src = dataUrl;
         await new Promise(r => { img.onload = r });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            throw new Error('Could not get canvas context');
+        }
+        ctx.drawImage(img, 0, 0);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
         
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
@@ -107,8 +120,7 @@ export default function ConvertPage() {
           doc.addPage();
         }
         
-        const format = dataUrl.substring(dataUrl.indexOf('/') + 1, dataUrl.indexOf(';'));
-        doc.addImage(dataUrl, format.toUpperCase(), x, y, pdfImgWidth, pdfImgHeight);
+        doc.addImage(compressedDataUrl, 'JPEG', x, y, pdfImgWidth, pdfImgHeight);
       }
 
       doc.save('OptiPic_Images.pdf');
@@ -204,7 +216,33 @@ export default function ConvertPage() {
           </CardContent>
         </Card>
         
-        <div className="flex justify-end mt-6">
+        <div className="my-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Compression Settings</CardTitle>
+                    <CardDescription>Adjust the image quality to reduce PDF size. All images will be converted to JPEG.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <Label htmlFor="quality" className="font-medium">Image Quality</Label>
+                            <span className="text-sm font-semibold text-primary">{Math.round(quality * 100)}%</span>
+                        </div>
+                        <Slider
+                            id="quality"
+                            min={0.1}
+                            max={1}
+                            step={0.05}
+                            value={[quality]}
+                            onValueChange={(value) => setQuality(value[0])}
+                        />
+                        <p className="text-xs text-muted-foreground">Lower quality results in a smaller file size.</p>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+        
+        <div className="flex justify-end">
             <Button size="lg" onClick={handleConvertToPdf} disabled={isConverting || selectedImages.length === 0}>
                 {isConverting ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
