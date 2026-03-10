@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PhotoEditor } from '@/components/photo-editor';
 import { OptiPicLogo } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
@@ -8,7 +9,7 @@ import { CollageMaker } from "@/components/collage-maker";
 import { BackgroundChanger } from "@/components/background-changer";
 import { MemeGenerator } from "@/components/meme-generator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Menu, MessageSquarePlus } from "lucide-react";
+import { Menu, MessageSquarePlus, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -58,6 +59,14 @@ export default function Home() {
                     <MessageSquarePlus className="mr-2" />
                     Meme Generator
                   </Button>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/convert" passHref>
+                    <Button variant="ghost" className="justify-start w-full">
+                      <Repeat className="mr-2" />
+                      Converter
+                    </Button>
+                  </Link>
                 </SheetClose>
               </div>
             </SheetContent>
