@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, ChangeEvent, useCallback, useEffect } from 'react';
@@ -157,17 +158,22 @@ export default function SignPage() {
   const handleMouseUp = useCallback(() => setDragState(null), []);
 
   useEffect(() => {
-    if (!dragState || typeof window === 'undefined') {
+    // This effect should only run on the client side when a drag is active.
+    if (!dragState || typeof document === 'undefined') {
       return;
     }
 
     const handleMove = (e: MouseEvent) => handleMouseMove(e);
-    const handleTouchMove = (e: TouchEvent) => { e.preventDefault(); handleMouseMove(e); };
+    const handleTouchMove = (e: TouchEvent) => { 
+      e.preventDefault(); 
+      handleMouseMove(e); 
+    };
     
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleMouseUp);
+
     return () => {
       document.removeEventListener('mousemove', handleMove);
       document.removeEventListener('mouseup', handleMouseUp);
