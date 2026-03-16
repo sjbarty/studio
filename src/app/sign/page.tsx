@@ -41,12 +41,17 @@ export default function SignPage() {
   const [signatureState, setSignatureState] = useState<SignatureState>({ x: 50, y: 50, width: 20 });
   const [dragState, setDragState] = useState<DragState>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const sigFileInputRef = useRef<HTMLInputElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const resetState = useCallback(() => {
     if (document?.url) URL.revokeObjectURL(document.url);
@@ -158,8 +163,7 @@ export default function SignPage() {
   const handleMouseUp = useCallback(() => setDragState(null), []);
 
   useEffect(() => {
-    // This effect should only run on the client side when a drag is active.
-    if (!dragState || typeof document === 'undefined') {
+    if (!dragState || !isClient) {
       return;
     }
 
@@ -180,7 +184,7 @@ export default function SignPage() {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleMouseUp);
     };
-  }, [dragState, handleMouseMove, handleMouseUp]);
+  }, [dragState, isClient, handleMouseMove, handleMouseUp]);
   
   const handleDownload = async () => {
     if (!document || !signature) return;
