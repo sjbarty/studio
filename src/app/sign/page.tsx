@@ -157,21 +157,23 @@ export default function SignPage() {
   const handleMouseUp = useCallback(() => setDragState(null), []);
 
   useEffect(() => {
-    if (dragState && typeof document !== "undefined") {
-      const handleMove = (e: MouseEvent) => handleMouseMove(e);
-      const handleTouchMove = (e: TouchEvent) => { e.preventDefault(); handleMouseMove(e); };
-      
-      document.addEventListener('mousemove', handleMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleMouseUp);
-      };
+    if (!dragState || typeof window === 'undefined') {
+      return;
     }
+
+    const handleMove = (e: MouseEvent) => handleMouseMove(e);
+    const handleTouchMove = (e: TouchEvent) => { e.preventDefault(); handleMouseMove(e); };
+    
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleMouseUp);
+    };
   }, [dragState, handleMouseMove, handleMouseUp]);
   
   const handleDownload = async () => {
