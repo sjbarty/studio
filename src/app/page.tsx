@@ -9,7 +9,7 @@ import { CollageMaker } from "@/components/collage-maker";
 import { BackgroundChanger } from "@/components/background-changer";
 import { MemeGenerator } from "@/components/meme-generator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Menu, MessageSquarePlus, Repeat } from "lucide-react";
+import { Menu, MessageSquarePlus, PenSquare, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -65,6 +65,14 @@ export default function Home() {
                     <Button variant="ghost" className="justify-start w-full">
                       <Repeat className="mr-2" />
                       Converter
+                    </Button>
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/sign" passHref>
+                    <Button variant="ghost" className="justify-start w-full">
+                      <PenSquare className="mr-2" />
+                      Image/PDF Signer
                     </Button>
                   </Link>
                 </SheetClose>
