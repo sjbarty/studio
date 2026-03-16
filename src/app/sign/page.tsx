@@ -157,7 +157,7 @@ export default function SignPage() {
   const handleMouseUp = useCallback(() => setDragState(null), []);
 
   useEffect(() => {
-    if (dragState) {
+    if (dragState && typeof document !== "undefined") {
       const handleMove = (e: MouseEvent) => handleMouseMove(e);
       const handleTouchMove = (e: TouchEvent) => { e.preventDefault(); handleMouseMove(e); };
       
