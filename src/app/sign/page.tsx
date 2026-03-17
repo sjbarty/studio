@@ -41,17 +41,12 @@ export default function SignPage() {
   const [signatureState, setSignatureState] = useState<SignatureState>({ x: 50, y: 50, width: 20 });
   const [dragState, setDragState] = useState<DragState>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-
+  
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const sigFileInputRef = useRef<HTMLInputElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const resetState = useCallback(() => {
     if (document?.url) URL.revokeObjectURL(document.url);
@@ -145,25 +140,26 @@ export default function SignPage() {
 
     const { width: containerWidth, height: containerHeight } = imageContainerRef.current.getBoundingClientRect();
     
-    let newState = { ...signatureState };
-    
-    if (dragState.type === 'move') {
-      const newX = dragState.startState.x + (dx / containerWidth) * 100;
-      const newY = dragState.startState.y + (dy / containerHeight) * 100;
-      newState.x = Math.max(0, Math.min(100, newX));
-      newState.y = Math.max(0, Math.min(100, newY));
-    } else if (dragState.type === 'resize') {
-      const newWidth = dragState.startState.width + (dx / containerWidth) * 100;
-      newState.width = Math.max(5, Math.min(100, newWidth));
-    }
-    setSignatureState(newState);
+    setSignatureState(currentState => {
+      let newState = { ...currentState };
+      if (dragState.type === 'move') {
+        const newX = dragState.startState.x + (dx / containerWidth) * 100;
+        const newY = dragState.startState.y + (dy / containerHeight) * 100;
+        newState.x = Math.max(0, Math.min(100, newX));
+        newState.y = Math.max(0, Math.min(100, newY));
+      } else if (dragState.type === 'resize') {
+        const newWidth = dragState.startState.width + (dx / containerWidth) * 100;
+        newState.width = Math.max(5, Math.min(100, newWidth));
+      }
+      return newState;
+    });
 
-  }, [dragState, signatureState]);
+  }, [dragState]);
 
   const handleMouseUp = useCallback(() => setDragState(null), []);
 
   useEffect(() => {
-    if (!dragState || !isClient) {
+    if (!dragState) {
       return;
     }
 
@@ -184,7 +180,7 @@ export default function SignPage() {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleMouseUp);
     };
-  }, [dragState, isClient, handleMouseMove, handleMouseUp]);
+  }, [dragState, handleMouseMove, handleMouseUp]);
   
   const handleDownload = async () => {
     if (!document || !signature) return;
