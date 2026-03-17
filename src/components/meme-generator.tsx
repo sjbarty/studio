@@ -265,7 +265,7 @@ export function MemeGenerator() {
 
   if (!image) {
     return (
-      <div className="container py-12 px-4 md:px-6">
+      <>
         <div
           className="relative flex flex-col items-center justify-center w-full min-h-[400px] lg:min-h-[500px] rounded-2xl border-2 border-dashed border-muted-foreground/20 bg-card overflow-hidden transition-colors hover:border-primary/50 hover:bg-primary/5"
           onDragOver={(e) => e.preventDefault()}
@@ -316,84 +316,82 @@ export function MemeGenerator() {
                 )}
             </CardContent>
         </Card>
-      </div>
+      </>
     );
   }
   
   return (
-    <div className="container py-8 px-4 md:px-6">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8 xl:col-span-9">
-          <Card className="overflow-hidden">
-            <div ref={imageContainerRef} className="relative w-full aspect-[4/3] bg-muted/30 flex items-center justify-center">
-              <Image
-                src={image.url}
-                alt="Meme background"
-                width={image.width}
-                height={image.height}
-                className="max-w-full max-h-full object-contain"
-                draggable={false}
-              />
-              <MemeTextDisplay
-                text={topText}
-                position={topTextPos}
-                onMouseDown={(e) => handleTextMouseDown(e, 'top')}
-                onTouchStart={(e) => handleTextTouchStart(e, 'top')}
-              />
-              <MemeTextDisplay
-                text={middleText}
-                position={middleTextPos}
-                onMouseDown={(e) => handleTextMouseDown(e, 'middle')}
-                onTouchStart={(e) => handleTextTouchStart(e, 'middle')}
-              />
-              <MemeTextDisplay
-                text={bottomText}
-                position={bottomTextPos}
-                onMouseDown={(e) => handleTextMouseDown(e, 'bottom')}
-                onTouchStart={(e) => handleTextTouchStart(e, 'bottom')}
-              />
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="lg:col-span-8 xl:col-span-9">
+        <Card className="overflow-hidden">
+          <div ref={imageContainerRef} className="relative w-full aspect-[4/3] bg-muted/30 flex items-center justify-center">
+            <Image
+              src={image.url}
+              alt="Meme background"
+              width={image.width}
+              height={image.height}
+              className="max-w-full max-h-full object-contain"
+              draggable={false}
+            />
+            <MemeTextDisplay
+              text={topText}
+              position={topTextPos}
+              onMouseDown={(e) => handleTextMouseDown(e, 'top')}
+              onTouchStart={(e) => handleTextTouchStart(e, 'top')}
+            />
+            <MemeTextDisplay
+              text={middleText}
+              position={middleTextPos}
+              onMouseDown={(e) => handleTextMouseDown(e, 'middle')}
+              onTouchStart={(e) => handleTextTouchStart(e, 'middle')}
+            />
+            <MemeTextDisplay
+              text={bottomText}
+              position={bottomTextPos}
+              onMouseDown={(e) => handleTextMouseDown(e, 'bottom')}
+              onTouchStart={(e) => handleTextTouchStart(e, 'bottom')}
+            />
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+        </Card>
+      </div>
+      <div className="lg:col-span-4 xl:col-span-3 space-y-6">
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2">Add Text</CardTitle>
+                  <CardDescription>Enter text and drag it on the image.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div className="space-y-1">
+                      <label htmlFor="top-text" className="text-sm font-medium">Top Text</label>
+                      <Input id="top-text" placeholder="Top text" value={topText} onChange={e => setTopText(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                       <label htmlFor="middle-text" className="text-sm font-medium">Middle Text</label>
+                      <Input id="middle-text" placeholder="Middle text" value={middleText} onChange={e => setMiddleText(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                       <label htmlFor="bottom-text" className="text-sm font-medium">Bottom Text</label>
+                      <Input id="bottom-text" placeholder="Bottom text" value={bottomText} onChange={e => setBottomText(e.target.value)} />
+                  </div>
+              </CardContent>
           </Card>
-        </div>
-        <div className="lg:col-span-4 xl:col-span-3 space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">Add Text</CardTitle>
-                    <CardDescription>Enter text and drag it on the image.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-1">
-                        <label htmlFor="top-text" className="text-sm font-medium">Top Text</label>
-                        <Input id="top-text" placeholder="Top text" value={topText} onChange={e => setTopText(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                         <label htmlFor="middle-text" className="text-sm font-medium">Middle Text</label>
-                        <Input id="middle-text" placeholder="Middle text" value={middleText} onChange={e => setMiddleText(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                         <label htmlFor="bottom-text" className="text-sm font-medium">Bottom Text</label>
-                        <Input id="bottom-text" placeholder="Bottom text" value={bottomText} onChange={e => setBottomText(e.target.value)} />
-                    </div>
-                </CardContent>
-            </Card>
 
-            <Card className="bg-primary/5 border-primary/20">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Download size={20}/> Export</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <Button className="w-full" size="lg" onClick={handleDownload} disabled={isProcessing}>
-                        {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
-                        Download Meme
-                    </Button>
-                    <Button variant="ghost" className="w-full" onClick={() => resetState()}>
-                        <Trash2 className="mr-2"/>
-                        Start Over
-                    </Button>
-                </CardContent>
-            </Card>
-        </div>
+          <Card className="bg-primary/5 border-primary/20">
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Download size={20}/> Export</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                  <Button className="w-full" size="lg" onClick={handleDownload} disabled={isProcessing}>
+                      {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
+                      Download Meme
+                  </Button>
+                  <Button variant="ghost" className="w-full" onClick={() => resetState()}>
+                      <Trash2 className="mr-2"/>
+                      Start Over
+                  </Button>
+              </CardContent>
+          </Card>
       </div>
     </div>
   )

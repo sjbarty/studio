@@ -7,7 +7,6 @@ import { OptiPicLogo } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
 import { CollageMaker } from "@/components/collage-maker";
 import { BackgroundChanger } from "@/components/background-changer";
-import { MemeGenerator } from "@/components/meme-generator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Menu, MessageSquarePlus, PenSquare, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,8 +29,6 @@ export default function Home() {
         return <CollageMaker />;
       case 'background':
         return <BackgroundChanger />;
-      case 'meme':
-        return <MemeGenerator />;
       case 'editor':
       default:
         return <PhotoEditor />;
@@ -55,10 +52,12 @@ export default function Home() {
               </SheetHeader>
               <div className="grid gap-2 py-4">
                 <SheetClose asChild>
-                  <Button variant={activeTool === 'meme' ? "secondary" : "ghost"} className="justify-start" onClick={() => setActiveTool('meme')}>
-                    <MessageSquarePlus className="mr-2" />
-                    Meme Generator
-                  </Button>
+                  <Link href="/meme" passHref>
+                    <Button variant="ghost" className="justify-start w-full">
+                      <MessageSquarePlus className="mr-2" />
+                      Meme Generator
+                    </Button>
+                  </Link>
                 </SheetClose>
                 <SheetClose asChild>
                   <Link href="/convert" passHref>
