@@ -121,54 +121,55 @@ export default function SignPage() {
   };
 
   useEffect(() => {
-    // This effect should only run on the client when a drag is active.
-    if (!dragState || typeof document === 'undefined') {
-      return;
-    }
-
     const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+      if (!dragState || !imageContainerRef.current) return;
+      
+      if ('touches' in e && e.touches.length === 1) {
+        e.preventDefault();
+      }
+  
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
+  
       const dx = clientX - dragState.startX;
       const dy = clientY - dragState.startY;
-
-      const container = imageContainerRef.current;
-      if (!container) return;
-
-      const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
+  
+      const { width: containerWidth, height: containerHeight } = imageContainerRef.current.getBoundingClientRect();
       
-      setSignatureState(startState => {
+      setSignatureState(() => {
+        const { startState } = dragState;
         const newState = { ...startState };
         if (dragState.type === 'move') {
-          const newX = dragState.startState.x + (dx / containerWidth) * 100;
-          const newY = dragState.startState.y + (dy / containerHeight) * 100;
+          const newX = startState.x + (dx / containerWidth) * 100;
+          const newY = startState.y + (dy / containerHeight) * 100;
           newState.x = Math.max(0, Math.min(100, newX));
           newState.y = Math.max(0, Math.min(100, newY));
         } else if (dragState.type === 'resize') {
-          const newWidth = dragState.startState.width + (dx / containerWidth) * 100;
+          const newWidth = startState.width + (dx / containerWidth) * 100;
           newState.width = Math.max(5, Math.min(100, newWidth));
         }
         return newState;
       });
     };
-
+  
     const handleMouseUp = () => {
       setDragState(null);
     };
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchmove', handleMouseMove, { passive: false });
-    document.addEventListener('touchend', handleMouseUp);
-
-    // This cleanup function will only be created and run on the client
-    // when the effect for an active drag is being cleaned up.
+    if (dragState && typeof document !== 'undefined') {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
+    }
+  
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchmove', handleMouseMove);
-      document.removeEventListener('touchend', handleMouseUp);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleMouseMove);
+        document.removeEventListener('touchend', handleMouseUp);
+      }
     };
   }, [dragState]);
   
