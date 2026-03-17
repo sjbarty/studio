@@ -47,11 +47,8 @@ export default function SignPage() {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
-  
-  const dragStateRef = useRef(dragState);
-  dragStateRef.current = dragState;
 
-  const resetState = useCallback(() => {
+  const handleStartOver = useCallback(() => {
     if (document?.url) URL.revokeObjectURL(document.url);
     if (signature?.url) URL.revokeObjectURL(signature.url);
     setDocument(null);
@@ -80,7 +77,7 @@ export default function SignPage() {
     const url = URL.createObjectURL(file);
     const img = new window.Image();
     img.onload = () => {
-      resetState();
+      handleStartOver(); // Properly reset everything before setting new doc
       setDocument({ file, url, width: img.width, height: img.height });
     };
     img.onerror = () => {
@@ -97,7 +94,6 @@ export default function SignPage() {
       return;
     }
     
-    // For best results, recommend a transparent background
     if (file.type !== 'image/png') {
         toast({
             title: "For best results",
@@ -118,13 +114,13 @@ export default function SignPage() {
     img.src = url;
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: DragState['type']) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: NonNullable<DragState>['type']) => {
     e.preventDefault();
     e.stopPropagation();
     setDragState({ type, startX: e.clientX, startY: e.clientY, startState: { ...signatureState } });
   };
   
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, type: DragState['type']) => {
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, type: NonNullable<DragState>['type']) => {
     if (e.touches.length !== 1) return;
     e.preventDefault();
     e.stopPropagation();
@@ -134,30 +130,29 @@ export default function SignPage() {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent | TouchEvent) => {
-      const currentDragState = dragStateRef.current;
-      if (!currentDragState || !imageContainerRef.current) return;
+      if (!dragState || !imageContainerRef.current) return;
       
-      if ('touches' in e) {
+      if ('touches' in e && e.touches.length === 1) {
         e.preventDefault();
       }
 
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-      const dx = clientX - currentDragState.startX;
-      const dy = clientY - currentDragState.startY;
+      const dx = clientX - dragState.startX;
+      const dy = clientY - dragState.startY;
 
       const { width: containerWidth, height: containerHeight } = imageContainerRef.current.getBoundingClientRect();
       
       setSignatureState(() => {
-        const { startState } = currentDragState;
+        const { startState } = dragState;
         const newState = { ...startState };
-        if (currentDragState.type === 'move') {
+        if (dragState.type === 'move') {
           const newX = startState.x + (dx / containerWidth) * 100;
           const newY = startState.y + (dy / containerHeight) * 100;
           newState.x = Math.max(0, Math.min(100, newX));
           newState.y = Math.max(0, Math.min(100, newY));
-        } else if (currentDragState.type === 'resize') {
+        } else if (dragState.type === 'resize') {
           const newWidth = startState.width + (dx / containerWidth) * 100;
           newState.width = Math.max(5, Math.min(100, newWidth));
         }
@@ -166,15 +161,15 @@ export default function SignPage() {
     };
 
     const handleMouseUp = () => {
-      if (dragStateRef.current) {
-        setDragState(null);
-      }
+      setDragState(null);
     };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchmove', handleMouseMove, { passive: false });
-    document.addEventListener('touchend', handleMouseUp);
+    
+    if (dragState) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
+    }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
@@ -182,7 +177,7 @@ export default function SignPage() {
       document.removeEventListener('touchmove', handleMouseMove);
       document.removeEventListener('touchend', handleMouseUp);
     };
-  }, []);
+  }, [dragState]);
   
   const handleDownload = async () => {
     if (!document || !signature) return;
@@ -200,7 +195,7 @@ export default function SignPage() {
     docImg.crossOrigin = "anonymous";
     docImg.src = document.url;
 
-    await new Promise(r => docImg.onload = r);
+    await new Promise(r => { if(docImg.complete) r(true); else docImg.onload = r });
     
     canvas.width = docImg.width;
     canvas.height = docImg.height;
@@ -210,7 +205,7 @@ export default function SignPage() {
     sigImg.crossOrigin = "anonymous";
     sigImg.src = signature.url;
 
-    await new Promise(r => sigImg.onload = r);
+    await new Promise(r => { if(sigImg.complete) r(true); else sigImg.onload = r });
 
     const sigWidthPx = (signatureState.width / 100) * canvas.width;
     const sigHeightPx = sigWidthPx * (signature.height / signature.width);
@@ -361,7 +356,7 @@ export default function SignPage() {
                         {isProcessing ? <Loader2 className="animate-spin mr-2"/> : <Download className="mr-2"/>}
                         Download Signed Image
                     </Button>
-                    <Button variant="ghost" className="w-full" onClick={resetState}>
+                    <Button variant="ghost" className="w-full" onClick={handleStartOver}>
                         <Trash2 className="mr-2"/>
                         Start Over
                     </Button>
