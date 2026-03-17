@@ -47,6 +47,9 @@ export default function SignPage() {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
+  
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
 
   const resetState = useCallback(() => {
     if (document?.url) URL.revokeObjectURL(document.url);
@@ -129,58 +132,57 @@ export default function SignPage() {
     setDragState({ type, startX: touch.clientX, startY: touch.clientY, startState: { ...signatureState } });
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!dragState || !imageContainerRef.current) return;
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-    const dx = clientX - dragState.startX;
-    const dy = clientY - dragState.startY;
-
-    const { width: containerWidth, height: containerHeight } = imageContainerRef.current.getBoundingClientRect();
-    
-    setSignatureState(currentState => {
-      let newState = { ...currentState };
-      if (dragState.type === 'move') {
-        const newX = dragState.startState.x + (dx / containerWidth) * 100;
-        const newY = dragState.startState.y + (dy / containerHeight) * 100;
-        newState.x = Math.max(0, Math.min(100, newX));
-        newState.y = Math.max(0, Math.min(100, newY));
-      } else if (dragState.type === 'resize') {
-        const newWidth = dragState.startState.width + (dx / containerWidth) * 100;
-        newState.width = Math.max(5, Math.min(100, newWidth));
-      }
-      return newState;
-    });
-
-  }, [dragState]);
-
-  const handleMouseUp = useCallback(() => setDragState(null), []);
-
   useEffect(() => {
-    if (!dragState) {
-      return;
-    }
+    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+      const currentDragState = dragStateRef.current;
+      if (!currentDragState || !imageContainerRef.current) return;
+      
+      if ('touches' in e) {
+        e.preventDefault();
+      }
 
-    const handleMove = (e: MouseEvent) => handleMouseMove(e);
-    const handleTouchMove = (e: TouchEvent) => { 
-      e.preventDefault(); 
-      handleMouseMove(e); 
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+      const dx = clientX - currentDragState.startX;
+      const dy = clientY - currentDragState.startY;
+
+      const { width: containerWidth, height: containerHeight } = imageContainerRef.current.getBoundingClientRect();
+      
+      setSignatureState(() => {
+        const { startState } = currentDragState;
+        const newState = { ...startState };
+        if (currentDragState.type === 'move') {
+          const newX = startState.x + (dx / containerWidth) * 100;
+          const newY = startState.y + (dy / containerHeight) * 100;
+          newState.x = Math.max(0, Math.min(100, newX));
+          newState.y = Math.max(0, Math.min(100, newY));
+        } else if (currentDragState.type === 'resize') {
+          const newWidth = startState.width + (dx / containerWidth) * 100;
+          newState.width = Math.max(5, Math.min(100, newWidth));
+        }
+        return newState;
+      });
     };
-    
-    document.addEventListener('mousemove', handleMove);
+
+    const handleMouseUp = () => {
+      if (dragStateRef.current) {
+        setDragState(null);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchmove', handleMouseMove, { passive: false });
     document.addEventListener('touchend', handleMouseUp);
 
     return () => {
-      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchmove', handleMouseMove);
       document.removeEventListener('touchend', handleMouseUp);
     };
-  }, [dragState, handleMouseMove, handleMouseUp]);
+  }, []);
   
   const handleDownload = async () => {
     if (!document || !signature) return;
