@@ -121,6 +121,8 @@ export default function SignPage() {
   };
 
   useEffect(() => {
+    if (typeof window === 'undefined') return; // Guard for SSR
+
     const handleMouseMove = (e: MouseEvent | TouchEvent) => {
       if (!dragState || !imageContainerRef.current) return;
       
@@ -156,19 +158,19 @@ export default function SignPage() {
       setDragState(null);
     };
     
-    if (dragState && typeof document !== 'undefined') {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleMouseMove, { passive: false });
-      document.addEventListener('touchend', handleMouseUp);
+    if (dragState) {
+      window.document.addEventListener('mousemove', handleMouseMove);
+      window.document.addEventListener('mouseup', handleMouseUp);
+      window.document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      window.document.addEventListener('touchend', handleMouseUp);
     }
   
     return () => {
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchmove', handleMouseMove);
-        document.removeEventListener('touchend', handleMouseUp);
+      if (typeof window !== 'undefined') {
+        window.document.removeEventListener('mousemove', handleMouseMove);
+        window.document.removeEventListener('mouseup', handleMouseUp);
+        window.document.removeEventListener('touchmove', handleMouseMove);
+        window.document.removeEventListener('touchend', handleMouseUp);
       }
     };
   }, [dragState]);
