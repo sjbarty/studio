@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, ChangeEvent, useCallback, useEffect } from 'react';
@@ -49,22 +48,15 @@ export default function SignPage() {
   const { toast } = useToast();
 
   const handleStartOver = useCallback(() => {
+    // Revoke URLs before resetting state to avoid memory leaks
     if (document?.url) URL.revokeObjectURL(document.url);
     if (signature?.url) URL.revokeObjectURL(signature.url);
+
     setDocument(null);
     setSignature(null);
     setSignatureState({ x: 50, y: 50, width: 20 });
     if (docFileInputRef.current) docFileInputRef.current.value = "";
     if (sigFileInputRef.current) sigFileInputRef.current.value = "";
-  }, [document?.url, signature?.url]);
-
-  useEffect(() => {
-    const docUrl = document?.url;
-    const sigUrl = signature?.url;
-    return () => {
-      if (docUrl) URL.revokeObjectURL(docUrl);
-      if (sigUrl) URL.revokeObjectURL(sigUrl);
-    }
   }, [document?.url, signature?.url]);
 
   const handleDocChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -129,31 +121,32 @@ export default function SignPage() {
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
-      if (!dragState || !imageContainerRef.current) return;
-      
-      if ('touches' in e && e.touches.length === 1) {
-        e.preventDefault();
-      }
+    // This effect should only run on the client when a drag is active.
+    if (!dragState || typeof document === 'undefined') {
+      return;
+    }
 
+    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
       const dx = clientX - dragState.startX;
       const dy = clientY - dragState.startY;
 
-      const { width: containerWidth, height: containerHeight } = imageContainerRef.current.getBoundingClientRect();
+      const container = imageContainerRef.current;
+      if (!container) return;
+
+      const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
       
-      setSignatureState(() => {
-        const { startState } = dragState;
+      setSignatureState(startState => {
         const newState = { ...startState };
         if (dragState.type === 'move') {
-          const newX = startState.x + (dx / containerWidth) * 100;
-          const newY = startState.y + (dy / containerHeight) * 100;
+          const newX = dragState.startState.x + (dx / containerWidth) * 100;
+          const newY = dragState.startState.y + (dy / containerHeight) * 100;
           newState.x = Math.max(0, Math.min(100, newX));
           newState.y = Math.max(0, Math.min(100, newY));
         } else if (dragState.type === 'resize') {
-          const newWidth = startState.width + (dx / containerWidth) * 100;
+          const newWidth = dragState.startState.width + (dx / containerWidth) * 100;
           newState.width = Math.max(5, Math.min(100, newWidth));
         }
         return newState;
@@ -164,13 +157,13 @@ export default function SignPage() {
       setDragState(null);
     };
     
-    if (dragState) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleMouseMove, { passive: false });
-      document.addEventListener('touchend', handleMouseUp);
-    }
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleMouseMove, { passive: false });
+    document.addEventListener('touchend', handleMouseUp);
 
+    // This cleanup function will only be created and run on the client
+    // when the effect for an active drag is being cleaned up.
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
