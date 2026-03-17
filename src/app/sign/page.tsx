@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, ChangeEvent, useCallback, useEffect } from 'react';
@@ -13,7 +14,7 @@ import { Slider } from '@/components/ui/slider';
 
 const placeholderImage = PlaceHolderImages.find(p => p.id === 'editor-placeholder');
 
-interface Document {
+interface Doc {
   file: File;
   url: string;
   width: number;
@@ -35,7 +36,7 @@ interface SignatureState {
 type DragState = { type: 'move' | 'resize'; startX: number; startY: number; startState: SignatureState } | null;
 
 export default function SignPage() {
-  const [document, setDocument] = useState<Document | null>(null);
+  const [docFile, setDocFile] = useState<Doc | null>(null);
   const [signature, setSignature] = useState<Signature | null>(null);
   const [signatureState, setSignatureState] = useState<SignatureState>({ x: 50, y: 50, width: 20 });
   const [dragState, setDragState] = useState<DragState>(null);
@@ -48,15 +49,15 @@ export default function SignPage() {
   const { toast } = useToast();
 
   const handleStartOver = useCallback(() => {
-    if (document?.url) URL.revokeObjectURL(document.url);
+    if (docFile?.url) URL.revokeObjectURL(docFile.url);
     if (signature?.url) URL.revokeObjectURL(signature.url);
 
-    setDocument(null);
+    setDocFile(null);
     setSignature(null);
     setSignatureState({ x: 50, y: 50, width: 20 });
     if (docFileInputRef.current) docFileInputRef.current.value = "";
     if (sigFileInputRef.current) sigFileInputRef.current.value = "";
-  }, [document?.url, signature?.url]);
+  }, [docFile?.url, signature?.url]);
 
   const handleDocChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,7 +70,7 @@ export default function SignPage() {
     const img = new window.Image();
     img.onload = () => {
       handleStartOver();
-      setDocument({ file, url, width: img.width, height: img.height });
+      setDocFile({ file, url, width: img.width, height: img.height });
     };
     img.onerror = () => {
       toast({ variant: "destructive", title: "Invalid Image", description: "Could not load the selected file." });
@@ -120,8 +121,6 @@ export default function SignPage() {
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined') return; // Guard for SSR
-  
     const handleMouseMove = (e: MouseEvent | TouchEvent) => {
       if (!dragState || !imageContainerRef.current) return;
       
@@ -157,25 +156,25 @@ export default function SignPage() {
       setDragState(null);
     };
     
-    if (dragState) {
-      window.document.addEventListener('mousemove', handleMouseMove);
-      window.document.addEventListener('mouseup', handleMouseUp);
-      window.document.addEventListener('touchmove', handleMouseMove, { passive: false });
-      window.document.addEventListener('touchend', handleMouseUp);
+    if (dragState && typeof document !== 'undefined') {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
     }
   
     return () => {
-      if (typeof window !== 'undefined') {
-        window.document.removeEventListener('mousemove', handleMouseMove);
-        window.document.removeEventListener('mouseup', handleMouseUp);
-        window.document.removeEventListener('touchmove', handleMouseMove);
-        window.document.removeEventListener('touchend', handleMouseUp);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleMouseMove);
+        document.removeEventListener('touchend', handleMouseUp);
       }
     };
   }, [dragState]);
   
   const handleDownload = async () => {
-    if (!document || !signature) return;
+    if (!docFile || !signature) return;
     setIsProcessing(true);
     toast({
       title: "Processing Image",
@@ -199,7 +198,7 @@ export default function SignPage() {
         });
       };
     
-      const docImg = await loadImage(document.url);
+      const docImg = await loadImage(docFile.url);
       
       canvas.width = docImg.width;
       canvas.height = docImg.height;
@@ -247,7 +246,7 @@ export default function SignPage() {
   const signatureDisplayWidth = signatureState.width + '%';
   const signatureDisplayHeight = `calc(${signatureState.width}% * ${signatureAspectRatio})`;
 
-  if (!document) {
+  if (!docFile) {
     return (
         <div className="container flex flex-col items-center justify-start min-h-screen py-8">
             <div className="w-full max-w-4xl">
@@ -297,10 +296,10 @@ export default function SignPage() {
           <Card className="overflow-hidden">
             <div ref={imageContainerRef} className="relative w-full aspect-[4/3] bg-muted/30 flex items-center justify-center">
               <Image
-                src={document.url}
+                src={docFile.url}
                 alt="Document background"
-                width={document.width}
-                height={document.height}
+                width={docFile.width}
+                height={docFile.height}
                 className="max-w-full max-h-full object-contain pointer-events-none"
               />
               {signature && (
