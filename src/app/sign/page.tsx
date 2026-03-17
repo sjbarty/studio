@@ -48,7 +48,6 @@ export default function SignPage() {
   const { toast } = useToast();
 
   const handleStartOver = useCallback(() => {
-    // Revoke URLs before resetting state to avoid memory leaks
     if (document?.url) URL.revokeObjectURL(document.url);
     if (signature?.url) URL.revokeObjectURL(signature.url);
 
@@ -69,7 +68,7 @@ export default function SignPage() {
     const url = URL.createObjectURL(file);
     const img = new window.Image();
     img.onload = () => {
-      handleStartOver(); // Properly reset everything before setting new doc
+      handleStartOver();
       setDocument({ file, url, width: img.width, height: img.height });
     };
     img.onerror = () => {
@@ -122,7 +121,7 @@ export default function SignPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return; // Guard for SSR
-
+  
     const handleMouseMove = (e: MouseEvent | TouchEvent) => {
       if (!dragState || !imageContainerRef.current) return;
       
@@ -178,46 +177,70 @@ export default function SignPage() {
   const handleDownload = async () => {
     if (!document || !signature) return;
     setIsProcessing(true);
+    toast({
+      title: "Processing Image",
+      description: "Your signed image is being prepared for download.",
+    });
 
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-        toast({ variant: "destructive", title: "Error", description: "Could not create final image." });
-        setIsProcessing(false);
-        return;
+    try {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) {
+        throw new Error("Could not get canvas context.");
+      }
+
+      const loadImage = (src: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+            const img = new window.Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error("Failed to load image."));
+            img.src = src;
+        });
+      };
+    
+      const docImg = await loadImage(document.url);
+      
+      canvas.width = docImg.width;
+      canvas.height = docImg.height;
+      ctx.drawImage(docImg, 0, 0);
+      
+      const sigImg = await loadImage(signature.url);
+
+      const sigWidthPx = (signatureState.width / 100) * canvas.width;
+      const sigHeightPx = sigWidthPx * (signature.height / signature.width);
+      const sigXPx = (signatureState.x / 100) * canvas.width - sigWidthPx / 2;
+      const sigYPx = (signatureState.y / 100) * canvas.height - sigHeightPx / 2;
+
+      ctx.drawImage(sigImg, sigXPx, sigYPx, sigWidthPx, sigHeightPx);
+
+      const dataUrl = canvas.toDataURL('image/png');
+      if (!dataUrl || dataUrl === "data:,") {
+        throw new Error("Failed to generate image data.");
+      }
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `OptiPic_Signed_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download Started",
+        description: "Your signed image has been downloaded.",
+      });
+
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        variant: "destructive",
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
+      });
+    } finally {
+      setIsProcessing(false);
     }
-    
-    const docImg = new window.Image();
-    docImg.crossOrigin = "anonymous";
-    docImg.src = document.url;
-
-    await new Promise(r => { if(docImg.complete) r(true); else docImg.onload = r });
-    
-    canvas.width = docImg.width;
-    canvas.height = docImg.height;
-    ctx.drawImage(docImg, 0, 0);
-    
-    const sigImg = new window.Image();
-    sigImg.crossOrigin = "anonymous";
-    sigImg.src = signature.url;
-
-    await new Promise(r => { if(sigImg.complete) r(true); else sigImg.onload = r });
-
-    const sigWidthPx = (signatureState.width / 100) * canvas.width;
-    const sigHeightPx = sigWidthPx * (signature.height / signature.width);
-    const sigXPx = (signatureState.x / 100) * canvas.width - sigWidthPx / 2;
-    const sigYPx = (signatureState.y / 100) * canvas.height - sigHeightPx / 2;
-
-    ctx.drawImage(sigImg, sigXPx, sigYPx, sigWidthPx, sigHeightPx);
-
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
-    link.download = `OptiPic_Signed_${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setIsProcessing(false);
   };
   
   const signatureAspectRatio = signature ? signature.height / signature.width : 1;
